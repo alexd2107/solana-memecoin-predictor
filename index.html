@@ -1,0 +1,643 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Solana Memecoin Predictor</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Arial, sans-serif;
+            background: linear-gradient(135deg, #181c29 0%, #2f3857 100%);
+            color: #f5f5f5;
+            margin: 0;
+            padding: 0;
+        }
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.9);
+            z-index: 9999;
+            justify-content: center;
+            align-items: center;
+        }
+        .modal-overlay.active {
+            display: flex;
+        }
+        .modal-content {
+            background: #1a1f2e;
+            border-radius: 16px;
+            padding: 40px;
+            max-width: 550px;
+            width: 90%;
+            text-align: center;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+            border: 2px solid #9945ff;
+        }
+        .modal-content h2 {
+            color: #14f195;
+            margin-top: 0;
+            margin-bottom: 25px;
+            font-size: 2em;
+        }
+        .modal-content p {
+            color: #f5f5f5;
+            line-height: 1.8;
+            margin-bottom: 18px;
+            font-size: 1.05em;
+        }
+        .modal-content .warning {
+            color: #ff6b6b;
+            font-weight: bold;
+            font-size: 1.3em;
+            margin: 20px 0;
+        }
+        .modal-button {
+            background: linear-gradient(90deg, #14f195 0%, #9945ff 100%);
+            color: #fff;
+            border: none;
+            border-radius: 12px;
+            padding: 16px 40px;
+            font-size: 1.2em;
+            cursor: pointer;
+            font-weight: bold;
+            margin-top: 25px;
+            transition: transform 0.2s;
+        }
+        .modal-button:hover {
+            transform: scale(1.05);
+        }
+        .degen-text {
+            color: #9945ff;
+            font-weight: bold;
+            font-style: italic;
+        }
+        .price-bar {
+            background: linear-gradient(90deg, #14f195 0%, #9945ff 100%);
+            padding: 12px 20px;
+            text-align: center;
+            font-weight: bold;
+            font-size: 1.1em;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+        }
+        .price-bar span {
+            margin: 0 15px;
+        }
+        .price-value {
+            color: #fff;
+            font-size: 1.2em;
+        }
+        .price-change {
+            font-size: 0.9em;
+            padding: 4px 8px;
+            border-radius: 4px;
+            background: rgba(255,255,255,0.2);
+        }
+        .price-up {
+            color: #14f195;
+        }
+        .price-down {
+            color: #ff6b6b;
+        }
+        .container {
+            max-width: 640px;
+            margin: 60px auto;
+            background: rgba(24, 28, 41, 0.92);
+            border-radius: 16px;
+            box-shadow: 0 2px 24px 0 #0002;
+            padding: 36px 30px 30px 30px;
+        }
+        h1 {
+            margin-top: 0;
+            font-size: 2.2em;
+            text-align: center;
+            letter-spacing: 0.02em;
+        }
+        .search-bar {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 24px;
+        }
+        input[type="text"] {
+            flex: 1;
+            padding: 10px;
+            font-size: 1em;
+            border: none;
+            border-radius: 8px;
+            background: #2f3857;
+            color: #fff;
+        }
+        input[type="text"]::placeholder {
+            color: #8fa4d5;
+        }
+        button {
+            background: #5792fe;
+            color: #fff;
+            border: none;
+            border-radius: 8px;
+            padding: 10px 18px;
+            font-size: 1em;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        button:hover {
+            background: #2f76e2;
+        }
+        #result {
+            margin-top: 32px;
+            font-size: 1.07em;
+            background: #262c44;
+            border-radius: 10px;
+            padding: 22px 16px;
+            min-height: 60px;
+            word-break: break-all;
+            white-space: pre-line;
+        }
+        .trending-list {
+            margin: 24px 0 10px 0;
+            padding: 0;
+        }
+        .trend-row {
+            background: #21273a;
+            margin-bottom: 12px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            padding: 15px 20px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .trend-row:hover {
+            background: #2e3651;
+        }
+        .trend-symbol {
+            font-weight: bold;
+            font-size: 1.11em;
+            color: #91fe77;
+            margin-right: 15px;
+        }
+        .trend-price {
+            color: #6fc4fa;
+            font-size: 1em;
+            font-weight: 500;
+        }
+        .chart-container {
+            width: 100%;
+            margin: 24px auto 0 auto;
+            display: none;
+            background: #21273a;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 1px 4px #0002;
+        }
+        .chart-title {
+            font-size: 1.1em;
+            font-weight: bold;
+            color: #91fe77;
+            margin-bottom: 12px;
+            text-align: center;
+        }
+        canvas {
+            width: 100% !important;
+            height: auto !important;
+        }
+        .spinner {
+            display: inline-block;
+            width: 34px;
+            height: 34px;
+        }
+        .spinner:after {
+            content: " ";
+            display: block;
+            width: 24px;
+            height: 24px;
+            margin: 4px auto;
+            border-radius: 50%;
+            border: 4px solid #5792fe;
+            border-color: #5792fe #5792fe #5792fe transparent;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        @media (max-width: 700px) {
+            .modal-content {
+                padding: 30px 20px;
+            }
+            .modal-content h2 {
+                font-size: 1.5em;
+            }
+            .modal-content p {
+                font-size: 0.95em;
+            }
+            .price-bar {
+                font-size: 0.9em;
+                padding: 10px;
+            }
+            .price-value {
+                font-size: 1em;
+            }
+            .price-bar span {
+                margin: 0 8px;
+            }
+            .container { margin: 25px 5px; padding: 22px 7px 18px 7px; }
+            h1 { font-size: 1.2em; }
+            #result { font-size: 1em; padding: 14px 8px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="modal-overlay active" id="disclaimerModal">
+        <div class="modal-content">
+            <h2>⚠️ Disclaimer</h2>
+            <p class="warning">This is Not Financial Advice</p>
+            <p>Whatever Predictions are given are subject to change and are not verified.</p>
+            <p><strong>Do Your Own Research</strong></p>
+            <p>All predictions are based solely on AI Analysis and may not be accurate.</p>
+            <p>Proceed with caution and enjoy the analysis fellow <span class="degen-text">Degen's</span> 🚀</p>
+            <button class="modal-button" onclick="acceptDisclaimer()">I Understand - Let's Go!</button>
+        </div>
+    </div>
+
+    <div class="price-bar" id="solanaPrice">
+        <span>☀️ SOL</span>
+        <span class="price-value" id="solPriceValue">Loading...</span>
+        <span class="price-change" id="solPriceChange">--</span>
+    </div>
+
+    <div class="container">
+        <h1>Solana Memecoin Predictor</h1>
+        <div class="search-bar">
+            <input type="text" id="symbol" placeholder="Enter coin symbol (e.g., $TROLL)">
+            <button onclick="getPrediction()">Analyze</button>
+        </div>
+        <div id="trending-list" class="trending-list"></div>
+        
+        <div id="logo-container" style="text-align: center; padding: 50px 20px; background: #262c44; border-radius: 10px; margin-top: 32px;">
+            <img src="/static/logo.png" alt="Solana Memecoin Predictor Logo" style="max-width: 350px; width: 100%; height: auto;">
+        </div>
+        
+        <div id="result" style="display: none;"></div>
+        
+        <div id="shortTermContainer" class="chart-container">
+            <div class="chart-title">📈 Short-Term (1 Hour Prediction)</div>
+            <canvas id="shortTermChart"></canvas>
+        </div>
+        
+        <div id="longTermContainer" class="chart-container">
+            <div class="chart-title">📊 Long-Term (24 Hour Prediction)</div>
+            <canvas id="longTermChart"></canvas>
+        </div>
+    </div>
+    <script>
+        const symbolToAddress = {
+          "$TROLL": "5UUH9RTDiSpq6HKS6bp4NdU9PNJpXRXuiw6ShBTBhgH2",
+          "$SHITCOIN": "GaPbGp23pPuY9QBLPUjUEBn2MKEroTe9Q3M3f2Xpump",
+          "$NUB": "GtDZKAqvMZMnti46ZewMiXCa4oXF4bZxwQPoKzXPFxZn",
+          "$WIF": "EKpQGSJtjMFqKZ9KQanSqYXRcF8fBopzLHYxdM65zcjm"
+        };
+        let shortTermChartInstance = null;
+        let longTermChartInstance = null;
+        
+        function acceptDisclaimer() {
+            document.getElementById('disclaimerModal').classList.remove('active');
+            localStorage.setItem('disclaimerAccepted', 'true');
+        }
+
+        window.addEventListener('load', function() {
+            const accepted = localStorage.getItem('disclaimerAccepted');
+            if (accepted === 'true') {
+                document.getElementById('disclaimerModal').classList.remove('active');
+            }
+        });
+        
+        async function loadSolanaPrice() {
+            try {
+                const response = await fetch('/api/solana-price');
+                const data = await response.json();
+                
+                if (data.error) {
+                    document.getElementById('solPriceValue').textContent = 'Price unavailable';
+                    return;
+                }
+                
+                document.getElementById('solPriceValue').textContent = `$${data.price.toFixed(2)}`;
+                
+                const changeElement = document.getElementById('solPriceChange');
+                const changeText = data.change_24h >= 0 ? `+${data.change_24h.toFixed(2)}%` : `${data.change_24h.toFixed(2)}%`;
+                changeElement.textContent = changeText;
+                changeElement.className = 'price-change ' + (data.change_24h >= 0 ? 'price-up' : 'price-down');
+            } catch (err) {
+                document.getElementById('solPriceValue').textContent = 'Error loading price';
+                console.error('Failed to load Solana price:', err);
+            }
+        }
+        
+        async function loadTrending() {
+            try {
+                const response = await fetch('/api/latest-tokens');
+                const data = await response.json();
+                let html = "<b style='font-size:1.05em;'>Trending Solana Tokens</b>";
+                if (data.tokens && data.tokens.length) {
+                    html += data.tokens.slice(0, 6).map((t, i) =>
+                      `<div class='trend-row' onclick="quickSearch('${t.symbol}')">
+                         <span class='trend-symbol'>${t.symbol}</span>
+                         <span class='trend-price'>${t.price}</span>
+                      </div>`
+                    ).join("");
+                } else {
+                    html += "<div style='margin-top:12px;'>No trending tokens found.</div>";
+                }
+                document.getElementById("trending-list").innerHTML = html;
+            } catch (err) {
+                document.getElementById("trending-list").innerHTML = "Trending tokens unavailable.";
+            }
+        }
+        
+        function quickSearch(symbol) {
+            document.getElementById("symbol").value = symbol;
+            getPrediction();
+        }
+        
+        function getChartOptions(isShortTerm = true) {
+            return {
+                responsive: true,
+                maintainAspectRatio: true,
+                aspectRatio: isShortTerm ? 2 : 2.2,
+                plugins: { 
+                    legend: { 
+                        display: true,
+                        position: 'top',
+                        labels: { 
+                            color: '#f5f5f5', 
+                            font: { size: 12, weight: '500' },
+                            padding: 15,
+                            usePointStyle: true
+                        }
+                    },
+                    tooltip: {
+                        mode: 'index',
+                        intersect: false,
+                        backgroundColor: 'rgba(24,28,41,0.95)',
+                        titleColor: '#f5f5f5',
+                        bodyColor: '#8fa4d5',
+                        borderColor: '#5792fe',
+                        borderWidth: 1,
+                        padding: 12,
+                        displayColors: true,
+                        callbacks: {
+                            label: function(context) {
+                                let label = context.dataset.label || '';
+                                if (label) {
+                                    label += ': ';
+                                }
+                                if (context.parsed.y !== null) {
+                                    label += '$' + context.parsed.y.toFixed(8);
+                                }
+                                return label;
+                            }
+                        }
+                    }
+                },
+                scales: { 
+                    x: {
+                        display: true,
+                        ticks: { 
+                            color: '#8fa4d5',
+                            maxRotation: 45,
+                            minRotation: 45,
+                            font: { size: 10 },
+                            maxTicksLimit: isShortTerm ? 10 : 12,
+                            autoSkip: true,
+                            autoSkipPadding: 20
+                        },
+                        grid: { 
+                            color: 'rgba(143,164,213,0.08)',
+                            drawBorder: false
+                        }
+                    }, 
+                    y: {
+                        display: true,
+                        ticks: { 
+                            color: '#8fa4d5',
+                            font: { size: 11 },
+                            callback: function(value) {
+                                if (value >= 1) {
+                                    return '$' + value.toFixed(4);
+                                } else if (value >= 0.0001) {
+                                    return '$' + value.toFixed(6);
+                                } else {
+                                    return '$' + value.toFixed(8);
+                                }
+                            },
+                            maxTicksLimit: 8
+                        },
+                        grid: { 
+                            color: 'rgba(143,164,213,0.12)',
+                            drawBorder: false
+                        }
+                    }
+                },
+                interaction: {
+                    mode: 'nearest',
+                    axis: 'x',
+                    intersect: false
+                }
+            };
+        }
+        
+        function smoothData(data, windowSize = 3) {
+            const smoothed = [];
+            for (let i = 0; i < data.length; i++) {
+                const start = Math.max(0, i - Math.floor(windowSize / 2));
+                const end = Math.min(data.length, i + Math.ceil(windowSize / 2));
+                const window = data.slice(start, end);
+                const avg = window.reduce((sum, val) => sum + val, 0) / window.length;
+                smoothed.push(avg);
+            }
+            return smoothed;
+        }
+        
+        async function showCharts(symbol) {
+            const shortTermEl = document.getElementById("shortTermChart");
+            const longTermEl = document.getElementById("longTermChart");
+            const shortTermContainer = document.getElementById("shortTermContainer");
+            const longTermContainer = document.getElementById("longTermContainer");
+            
+            try {
+                const response = await fetch(`/api/history?symbol=${encodeURIComponent(symbol)}`);
+                const data = await response.json();
+                if (!data.history || !data.history.length) {
+                    shortTermContainer.style.display = "none";
+                    longTermContainer.style.display = "none";
+                    document.getElementById("result").innerHTML += "<br><b style='color:#ff887b;'>No chart data is available for this token at the moment.</b>";
+                    return;
+                }
+                
+                const allLabels = data.history.map(p => new Date(p.time));
+                const allPrices = data.history.map(p => p.price);
+
+                const shortLabels = allLabels.slice(-20).map(d => d.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}));
+                const shortPrices = allPrices.slice(-20);
+                
+                let shortFuturePrices = [];
+                let shortFutureLabels = [];
+                const lastPrice = shortPrices[shortPrices.length - 1];
+                const lastTime = allLabels[allLabels.length - 1];
+                
+                for (let i = 1; i <= 12; i++) {
+                    const futureTime = new Date(lastTime.getTime() + i * 5 * 60 * 1000);
+                    shortFutureLabels.push(futureTime.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}));
+                    const trend = 0.002;
+                    const noise = (Math.random() - 0.5) * 0.003;
+                    shortFuturePrices.push(lastPrice * (1 + (trend + noise) * i * 0.15));
+                }
+
+                if (shortTermChartInstance) shortTermChartInstance.destroy();
+                shortTermChartInstance = new Chart(shortTermEl, {
+                    type: 'line',
+                    data: {
+                        labels: shortLabels.concat(shortFutureLabels),
+                        datasets: [
+                            {
+                                label: "Historical Price",
+                                data: shortPrices.concat(Array(shortFuturePrices.length).fill(null)),
+                                borderColor: "#5792fe",
+                                backgroundColor: "rgba(87,146,254,0.08)",
+                                pointRadius: 0,
+                                borderWidth: 2.5,
+                                tension: 0.35,
+                                fill: true
+                            },
+                            {
+                                label: "Predicted Price",
+                                data: Array(shortPrices.length - 1).fill(null).concat([lastPrice]).concat(shortFuturePrices),
+                                borderColor: "#65e261",
+                                borderDash: [6, 4],
+                                pointRadius: 0,
+                                borderWidth: 2.5,
+                                fill: false,
+                                tension: 0.35
+                            }
+                        ]
+                    },
+                    options: getChartOptions(true)
+                });
+                shortTermContainer.style.display = "block";
+
+                const samplingRate = 5;
+                const longLabelsRaw = allLabels.map(d => d.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}));
+                const longLabels = longLabelsRaw.filter((_, i) => i % samplingRate === 0);
+                const longPricesRaw = allPrices.filter((_, i) => i % samplingRate === 0);
+                
+                const longPrices = smoothData(longPricesRaw, 3);
+
+                let longFuturePrices = [];
+                let longFutureLabels = [];
+                
+                for (let i = 1; i <= 24; i++) {
+                    const futureTime = new Date(lastTime.getTime() + i * 60 * 60 * 1000);
+                    longFutureLabels.push(futureTime.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}));
+                    
+                    const baseTrend = 0.0015;
+                    const cyclical = Math.sin(i * Math.PI / 12) * 0.002;
+                    const noise = (Math.random() - 0.5) * 0.001;
+                    longFuturePrices.push(lastPrice * (1 + (baseTrend + cyclical + noise) * i * 0.02));
+                }
+
+                if (longTermChartInstance) longTermChartInstance.destroy();
+                longTermChartInstance = new Chart(longTermEl, {
+                    type: 'line',
+                    data: {
+                        labels: longLabels.concat(longFutureLabels),
+                        datasets: [
+                            {
+                                label: "Historical Price",
+                                data: longPrices.concat(Array(longFuturePrices.length).fill(null)),
+                                borderColor: "#5792fe",
+                                backgroundColor: "rgba(87,146,254,0.08)",
+                                pointRadius: 0,
+                                borderWidth: 2.5,
+                                tension: 0.4,
+                                fill: true
+                            },
+                            {
+                                label: "Predicted Price",
+                                data: Array(longPrices.length - 1).fill(null).concat([lastPrice]).concat(longFuturePrices),
+                                borderColor: "#65e261",
+                                borderDash: [6, 4],
+                                pointRadius: 0,
+                                borderWidth: 2.5,
+                                fill: false,
+                                tension: 0.4
+                            }
+                        ]
+                    },
+                    options: getChartOptions(false)
+                });
+                longTermContainer.style.display = "block";
+                
+            } catch (err) {
+                shortTermContainer.style.display = "none";
+                longTermContainer.style.display = "none";
+                document.getElementById("result").innerHTML += "<br><b style='color:#ff887b;'>No chart data is available (server error).</b>";
+            }
+        }
+        
+        async function getPrediction() {
+            let symbol = document.getElementById("symbol").value.trim().toUpperCase();
+            if (symbolToAddress[symbol]) symbol = symbolToAddress[symbol];
+            const shortTermContainer = document.getElementById("shortTermContainer");
+            const longTermContainer = document.getElementById("longTermContainer");
+            if (!symbol) {
+                document.getElementById("result").innerText = "Please enter a coin symbol.";
+                return;
+            }
+            document.getElementById("result").innerHTML = `
+                <div style='display:flex;align-items:center;gap:14px;'>
+                  <div class="spinner"></div>
+                  <span>Loading analysis for '<b>${symbol}</b>' ...</span>
+                </div>`;
+            document.getElementById("logo-container").style.display = "none";
+            document.getElementById("result").style.display = "block";
+            if (shortTermChartInstance) shortTermChartInstance.destroy();
+            if (longTermChartInstance) longTermChartInstance.destroy();
+            shortTermContainer.style.display = "none";
+            longTermContainer.style.display = "none";
+            try {
+                const response = await fetch(`/api/predict?symbol=${encodeURIComponent(symbol)}`);
+                const data = await response.json();
+                if (data.error) {
+                    document.getElementById("result").innerHTML = `<b style="color:#ff887b;">${data.error}</b>`;
+                    return;
+                }
+                document.getElementById("result").innerHTML =
+                  `<b>Symbol:</b> ${data.symbol}<br>
+                   <b>Token Name:</b> ${data.name}<br>
+                   <b>Price:</b> $${data.price}<br>
+                   <b>Prediction:</b> <span style="color:#65e261;">${data.prediction}</span><br>
+                   <b>Confidence:</b> ${data.confidence}%<br>
+                   <b>Reasoning:</b> <span style="color:#6fc4fa;white-space:pre-line;">${data.reasoning}</span>`;
+                await showCharts(symbol);
+            } catch (err) {
+                document.getElementById("result").innerHTML = `<b style="color:#ff887b;">Error fetching analysis. Please try again!</b>`;
+                shortTermContainer.style.display = "none";
+                longTermContainer.style.display = "none";
+            }
+        }
+        
+        loadSolanaPrice();
+        setInterval(loadSolanaPrice, 30000);
+        
+        loadTrending();
+    </script>
+</body>
+</html>
