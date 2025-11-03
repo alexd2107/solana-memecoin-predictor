@@ -1,0 +1,2 @@
+# solana-memecoin-predictor
+
