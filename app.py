@@ -558,26 +558,59 @@ async def get_token_info(symbol: str):
         raise HTTPException(status_code=500, detail=f"Error: {str(e)}")
 
 
-# NEW SOLANA PRICE ENDPOINT - ADD THIS HERE!
 @app.get("/api/solana-price")
 async def get_solana_price():
-    """Get Solana price from CoinGecko"""
+    """Get Solana price with multiple fallbacks"""
     try:
+        # Try CoinGecko first
         response = requests.get(
             'https://api.coingecko.com/api/v3/simple/price',
             params={'ids': 'solana', 'vs_currencies': 'usd', 'include_24hr_change': 'true'},
-            timeout=10
+            timeout=10,
+            headers={'User-Agent': 'Mozilla/5.0'}
         )
         if response.status_code == 200:
             data = response.json()
+            if 'solana' in data:
+                return {
+                    'price': data['solana']['usd'],
+                    'change_24h': data['solana'].get('usd_24h_change', 0)
+                }
+        
+        # Fallback 1: Dexscreener for SOL/USDC pair
+        dex_response = requests.get(
+            'https://api.dexscreener.com/latest/dex/tokens/So11111111111111111111111111111111111111112',
+            timeout=10
+        )
+        if dex_response.status_code == 200:
+            dex_data = dex_response.json()
+            if dex_data.get('pairs'):
+                pair = dex_data['pairs'][0]
+                price = float(pair.get('priceUsd', 0))
+                change = float(pair.get('priceChange', {}).get('h24', 0))
+                if price > 0:
+                    return {
+                        'price': price,
+                        'change_24h': change
+                    }
+        
+        # Fallback 2: Binance API
+        binance_response = requests.get(
+            'https://api.binance.com/api/v3/ticker/24hr?symbol=SOLUSDT',
+            timeout=10
+        )
+        if binance_response.status_code == 200:
+            binance_data = binance_response.json()
             return {
-                'price': data['solana']['usd'],
-                'change_24h': data['solana']['usd_24h_change']
+                'price': float(binance_data['lastPrice']),
+                'change_24h': float(binance_data['priceChangePercent'])
             }
-        return {'error': 'Failed to fetch price'}
+        
+        return {'error': 'Failed to fetch price from all sources'}
+        
     except Exception as e:
+        print(f"Solana price error: {str(e)}")
         return {'error': str(e)}
-
 
 if __name__ == "__main__":
     import uvicorn
