@@ -1,7 +1,6 @@
 fastapi
 uvicorn
 requests
-pickle5
 numpy
 scikit-learn
 openai
