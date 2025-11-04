@@ -10,18 +10,23 @@ import base64
 import os
 from openai import OpenAI
 
+
 app = FastAPI()
+
 
 # Mount static files
 app.mount("/static", StaticFiles(directory="static"), name="static")
+
 
 # API Keys
 BITQUERY_API_KEY = "ory_at_f1B3dQRfIiJSDEKQOkxr4OXXQ1tMwcMN6CQuIWjevc4.4ySJCw0ZUx-zS5nXnJUXRY59X9NXR6uWf_RnEaNvlqc"
 MORALIS_API_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJub25jZSI6ImU0ZGQzYzQyLWIyYjgtNDNkZC1iZmE4LTgzMmU3NTgzNzM3YiIsIm9yZ0lkIjoiNDA5MjA3IiwidXNlcklkIjoiNDIwNTY5IiwidHlwZUlkIjoiNjljNzBmMzYtNzBjMS00OTVlLThkNzAtYjM2NzRlMzFjYzExIiwidHlwZSI6IlBST0pFQ1QiLCJpYXQiOjE3MzAwNzQ2MDUsImV4cCI6NDg4NTgzNDYwNX0.ZHXgLyqMR9ijN-vKFxzxgwf0WPKJXcmdsFQCZsDIzOI"
 OPENAI_API_KEY = "sk-proj-mz9TE9TCZnsq66V3O-C1M1JjD80Q92tsEEu4WJutZcjkqSKCf_yN8Cy3FdH-4DafD56-YxBvzfT3BlbkFJwNc0wDdGkEKpD6wvRcO8K-CqmIY4Kz1DVPJHNy-oi5z_zNgjw4P4zMuOSk-cC9XQ19fqisA"
 
+
 # Initialize OpenAI client
 client = OpenAI(api_key=OPENAI_API_KEY)
+
 
 # Load the trained model
 try:
@@ -31,17 +36,21 @@ except:
     model = None
     print("Warning: Model file not found")
 
+
 @app.get("/")
 async def read_root():
     return FileResponse('static/index.html')
+
 
 @app.get("/api")
 async def get_api():
     return {"message": "Solana Memecoin Predictor API", "status": "running"}
 
+
 def get_dexscreener_chart_url(mint_address: str) -> str:
     """Generate Dexscreener chart URL for a token"""
     return f"https://dexscreener.com/solana/{mint_address}"
+
 
 def analyze_chart_image(chart_url: str) -> str:
     """Analyze chart image using GPT-4 Vision"""
@@ -71,6 +80,7 @@ def analyze_chart_image(chart_url: str) -> str:
 5. Risk level (1-10 scale)
 6. Whether this shows 30%+ opportunity potential (YES/NO)
 
+
 Keep analysis concise and actionable."""
                         },
                         {
@@ -90,6 +100,7 @@ Keep analysis concise and actionable."""
     
     except Exception as e:
         return f"❌ Chart analysis unavailable: {str(e)}"
+
 
 def predict_trend(price: float, volume24h: float, liquidity: float, mint_address: str = None) -> dict:
     """Predict if token can achieve 30%+ gains with detailed reasoning"""
@@ -118,14 +129,18 @@ def predict_trend(price: float, volume24h: float, liquidity: float, mint_address
             'confidence': 0,
             'reasoning': f"""🔴 GAIN POTENTIAL SCORE: 0/17
 
+
 🚨 PREDICTION: AVOID THIS TOKEN
 ⚠️ CONFIDENCE: DO NOT TRADE
 
+
 {pump_dump_reason}
+
 
 ⚠️ Volume/Liquidity Ratio: {vol_liq_ratio:.2f} — DANGER ZONE
 ❌ This token shows classic pump & dump characteristics
 ❌ Extremely high risk of losing capital
+
 
 🛑 RECOMMENDATION: Do NOT enter this trade. Look for safer opportunities.""",
             'highest_price': price * 1.05,
@@ -248,12 +263,16 @@ def predict_trend(price: float, volume24h: float, liquidity: float, mint_address
     # Build reasoning output
     reasoning_output = f"""📊 GAIN POTENTIAL SCORE: {gain_score}/17
 
+
 🎯 PREDICTION: {prediction_text}
 💪 CONFIDENCE: {confidence_level}
 
+
 {chr(10).join(reasoning_parts)}
 
+
 🤖 ML Model says: '{ml_prediction}' with {ml_confidence:.0f}% confidence
+
 
 {recommendation}"""
     
@@ -274,6 +293,7 @@ def predict_trend(price: float, volume24h: float, liquidity: float, mint_address
         'lowest_price': price * 0.92,   # Small downside risk
         'chart_analysis': chart_analysis
     }
+
 
 @app.get("/api/predict")
 async def predict(symbol: str):
@@ -410,6 +430,7 @@ async def predict(symbol: str):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error: {str(e)}")
 
+
 @app.get("/api/latest-tokens")
 async def get_latest_tokens():
     """Get trending tokens"""
@@ -425,6 +446,7 @@ async def get_latest_tokens():
     
     except Exception as e:
         return {"tokens": [], "error": str(e)}
+
 
 @app.get("/api/history")
 async def get_history(symbol: str):
@@ -509,6 +531,7 @@ async def get_history(symbol: str):
             'low_prediction': fallback_price * 0.95
         }
 
+
 @app.get("/api/token-info")
 async def get_token_info(symbol: str):
     """Get basic token information"""
@@ -533,6 +556,28 @@ async def get_token_info(symbol: str):
     
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error: {str(e)}")
+
+
+# NEW SOLANA PRICE ENDPOINT - ADD THIS HERE!
+@app.get("/api/solana-price")
+async def get_solana_price():
+    """Get Solana price from CoinGecko"""
+    try:
+        response = requests.get(
+            'https://api.coingecko.com/api/v3/simple/price',
+            params={'ids': 'solana', 'vs_currencies': 'usd', 'include_24hr_change': 'true'},
+            timeout=10
+        )
+        if response.status_code == 200:
+            data = response.json()
+            return {
+                'price': data['solana']['usd'],
+                'change_24h': data['solana']['usd_24h_change']
+            }
+        return {'error': 'Failed to fetch price'}
+    except Exception as e:
+        return {'error': str(e)}
+
 
 if __name__ == "__main__":
     import uvicorn
