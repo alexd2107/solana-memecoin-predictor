@@ -8,6 +8,7 @@ from datetime import datetime, timedelta
 import random
 import base64
 import os
+import json
 from openai import OpenAI
 
 
@@ -23,6 +24,9 @@ BITQUERY_API_KEY = "ory_at_f1B3dQRfIiJSDEKQOkxr4OXXQ1tMwcMN6CQuIWjevc4.4ySJCw0ZU
 MORALIS_API_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJub25jZSI6ImU0ZGQzYzQyLWIyYjgtNDNkZC1iZmE4LTgzMmU3NTgzNzM3YiIsIm9yZ0lkIjoiNDA5MjA3IiwidXNlcklkIjoiNDIwNTY5IiwidHlwZUlkIjoiNjljNzBmMzYtNzBjMS00OTVlLThkNzAtYjM2NzRlMzFjYzExIiwidHlwZSI6IlBST0pFQ1QiLCJpYXQiOjE3MzAwNzQ2MDUsImV4cCI6NDg4NTgzNDYwNX0.ZHXgLyqMR9ijN-vKFxzxgwf0WPKJXcmdsFQCZsDIzOI"
 OPENAI_API_KEY = "sk-proj-mz9TE9TCZnsq66V3O-C1M1JjD80Q92tsEEu4WJutZcjkqSKCf_yN8Cy3FdH-4DafD56-YxBvzfT3BlbkFJwNc0wDdGkEKpD6wvRcO8K-CqmIY4Kz1DVPJHNy-oi5z_zNgjw4P4zMuOSk-cC9XQ19fqisA"
 
+# Discord Webhook
+DISCORD_WEBHOOK_URL = "https://discord.com/api/webhooks/1437292750960594975/2EHZkITnwOC3PwG-h1es1hokmehqlcvUpP6QJPMsIdMjI54YZtP0NdNyEzuE-CCwbRF5"
+
 
 # Initialize OpenAI client
 client = OpenAI(api_key=OPENAI_API_KEY)
@@ -35,6 +39,50 @@ try:
 except:
     model = None
     print("Warning: Model file not found")
+
+
+def send_discord_notification(symbol: str, token_name: str = None, price: float = None, 
+                              prediction: str = None, volume24h: float = None, 
+                              liquidity: float = None):
+    """Send search notification to Discord"""
+    try:
+        # Determine embed color based on prediction
+        color = 5814783  # Default purple
+        if prediction and "30%+ GAIN" in prediction:
+            color = 5763719  # Green
+        elif prediction and "AVOID" in prediction:
+            color = 15548997  # Red
+        elif prediction and "15-30%" in prediction:
+            color = 16776960  # Yellow
+        
+        embed = {
+            "title": "🔍 New Crypto Search",
+            "color": color,
+            "fields": [
+                {"name": "🪙 Symbol", "value": symbol, "inline": True},
+                {"name": "🕒 Time", "value": datetime.now().strftime("%Y-%m-%d %H:%M:%S EST"), "inline": True}
+            ],
+            "footer": {"text": "Solana Memecoin Predictor"},
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        
+        # Add optional data if available
+        if token_name:
+            embed["fields"].insert(1, {"name": "📛 Token Name", "value": token_name, "inline": False})
+        if price:
+            embed["fields"].append({"name": "💰 Price", "value": f"${price:.8f}", "inline": True})
+        if volume24h:
+            embed["fields"].append({"name": "📊 Volume 24h", "value": f"${volume24h:,.0f}", "inline": True})
+        if liquidity:
+            embed["fields"].append({"name": "💧 Liquidity", "value": f"${liquidity:,.0f}", "inline": True})
+        if prediction:
+            embed["fields"].append({"name": "🎯 Prediction", "value": prediction, "inline": False})
+        
+        payload = {"embeds": [embed]}
+        
+        requests.post(DISCORD_WEBHOOK_URL, json=payload, timeout=5)
+    except Exception as e:
+        print(f"Discord notification failed: {e}")
 
 
 @app.get("/")
@@ -289,8 +337,8 @@ def predict_trend(price: float, volume24h: float, liquidity: float, mint_address
         'prediction': prediction_text,
         'confidence': ml_confidence if model else 50,
         'reasoning': reasoning_output,
-        'highest_price': price * 1.35,  # Predict 35% upside for winners
-        'lowest_price': price * 0.92,   # Small downside risk
+        'highest_price': price * 1.35,
+        'lowest_price': price * 0.92,
         'chart_analysis': chart_analysis
     }
 
@@ -316,6 +364,16 @@ async def predict(symbol: str):
                 
                 # Get prediction with chart analysis
                 result = predict_trend(price, volume24h, liquidity, token_address)
+                
+                # Send Discord notification with full details
+                send_discord_notification(
+                    symbol=token_symbol,
+                    token_name=token_name,
+                    price=price,
+                    prediction=result['prediction'],
+                    volume24h=volume24h,
+                    liquidity=liquidity
+                )
                 
                 return {
                     'symbol': token_symbol,
@@ -346,6 +404,16 @@ async def predict(symbol: str):
             liquidity = 50000
             
             result = predict_trend(price, volume24h, liquidity, symbol)
+            
+            # Send Discord notification
+            send_discord_notification(
+                symbol=symbol,
+                token_name=token_name,
+                price=price,
+                prediction=result['prediction'],
+                volume24h=volume24h,
+                liquidity=liquidity
+            )
             
             return {
                 'symbol': symbol,
@@ -411,6 +479,16 @@ async def predict(symbol: str):
                 
                 result = predict_trend(price, volume24h, liquidity, symbol)
                 
+                # Send Discord notification
+                send_discord_notification(
+                    symbol=token_symbol,
+                    token_name=token_name,
+                    price=price,
+                    prediction=result['prediction'],
+                    volume24h=volume24h,
+                    liquidity=liquidity
+                )
+                
                 return {
                     'symbol': token_symbol,
                     'name': token_name,
@@ -435,7 +513,6 @@ async def predict(symbol: str):
 async def get_latest_tokens():
     """Get trending tokens"""
     try:
-        # Return predefined trending tokens
         trending = [
             {"symbol": "$TROLL", "price": "$0.000010"},
             {"symbol": "$SHITCOIN", "price": "$0.000020"},
@@ -452,18 +529,16 @@ async def get_latest_tokens():
 async def get_history(symbol: str):
     """Get historical price data with future predictions for charting"""
     try:
-        # Get current price from Dexscreener
         search_url = f"https://api.dexscreener.com/latest/dex/search?q={symbol}"
         response = requests.get(search_url, timeout=10)
         
-        current_price = 0.0001  # fallback
+        current_price = 0.0001
         if response.status_code == 200:
             data = response.json()
             if data.get('pairs'):
                 pair = data['pairs'][0]
                 current_price = float(pair.get('priceUsd', 0.0001))
         
-        # Generate historical data (100 points = 8 hours, 5-min intervals)
         history = []
         base_time = datetime.now()
         
@@ -471,62 +546,38 @@ async def get_history(symbol: str):
             timestamp = (base_time - timedelta(minutes=i * 5)).isoformat()
             variation = random.uniform(-0.05, 0.05)
             price = current_price * (1 + variation)
-            history.append({
-                'time': timestamp,
-                'price': price
-            })
+            history.append({'time': timestamp, 'price': price})
         
-        # Add current price
-        history.append({
-            'time': base_time.isoformat(),
-            'price': current_price
-        })
+        history.append({'time': base_time.isoformat(), 'price': current_price})
         
-        # Generate FUTURE predictions
         future = []
-        
-        # Short-term prediction: 12 points (1 hour ahead, 5-min intervals)
         for i in range(1, 13):
             future_time = (base_time + timedelta(minutes=i * 5)).isoformat()
-            # Predict slight upward trend with randomness
-            trend = random.uniform(0.001, 0.015)  # 0.1% to 1.5% increase
-            future_price = current_price * (1 + trend * i * 0.3)  # Gradual increase
-            future.append({
-                'time': future_time,
-                'price': future_price
-            })
+            trend = random.uniform(0.001, 0.015)
+            future_price = current_price * (1 + trend * i * 0.3)
+            future.append({'time': future_time, 'price': future_price})
         
-        # Calculate high and low predictions
         all_prices = [p['price'] for p in history] + [p['price'] for p in future]
-        high_prediction = max(all_prices)
-        low_prediction = min(all_prices)
         
         return {
             'history': history,
             'future': future,
-            'high_prediction': high_prediction,
-            'low_prediction': low_prediction
+            'high_prediction': max(all_prices),
+            'low_prediction': min(all_prices)
         }
     
     except Exception as e:
         print(f"Chart generation error: {str(e)}")
-        # Return minimal fallback data
         current_time = datetime.now()
         fallback_price = 0.0001
         
-        minimal_history = [{
-            'time': (current_time - timedelta(hours=i)).isoformat(),
-            'price': fallback_price * random.uniform(0.95, 1.05)
-        } for i in range(10, 0, -1)]
-        
-        minimal_future = [{
-            'time': (current_time + timedelta(hours=i)).isoformat(),
-            'price': fallback_price * random.uniform(1.0, 1.1)
-        } for i in range(1, 5)]
-        
         return {
-            'history': minimal_history,
-            'future': minimal_future,
+            'history': [{'time': (current_time - timedelta(hours=i)).isoformat(), 
+                        'price': fallback_price * random.uniform(0.95, 1.05)} 
+                       for i in range(10, 0, -1)],
+            'future': [{'time': (current_time + timedelta(hours=i)).isoformat(), 
+                       'price': fallback_price * random.uniform(1.0, 1.1)} 
+                      for i in range(1, 5)],
             'high_prediction': fallback_price * 1.1,
             'low_prediction': fallback_price * 0.95
         }
@@ -562,7 +613,6 @@ async def get_token_info(symbol: str):
 async def get_solana_price():
     """Get Solana price with multiple fallbacks"""
     try:
-        # Try CoinGecko first
         response = requests.get(
             'https://api.coingecko.com/api/v3/simple/price',
             params={'ids': 'solana', 'vs_currencies': 'usd', 'include_24hr_change': 'true'},
@@ -577,7 +627,6 @@ async def get_solana_price():
                     'change_24h': data['solana'].get('usd_24h_change', 0)
                 }
         
-        # Fallback 1: Dexscreener for SOL/USDC pair
         dex_response = requests.get(
             'https://api.dexscreener.com/latest/dex/tokens/So11111111111111111111111111111111111111112',
             timeout=10
@@ -589,12 +638,8 @@ async def get_solana_price():
                 price = float(pair.get('priceUsd', 0))
                 change = float(pair.get('priceChange', {}).get('h24', 0))
                 if price > 0:
-                    return {
-                        'price': price,
-                        'change_24h': change
-                    }
+                    return {'price': price, 'change_24h': change}
         
-        # Fallback 2: Binance API
         binance_response = requests.get(
             'https://api.binance.com/api/v3/ticker/24hr?symbol=SOLUSDT',
             timeout=10
