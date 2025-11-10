@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Solana Memecoin Predictor</title>
+    <title>Solscanai</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
@@ -267,14 +267,16 @@
         </div>
     </div>
 
+
     <div class="price-bar" id="solanaPrice">
         <span>☀️ SOL</span>
         <span class="price-value" id="solPriceValue">Loading...</span>
         <span class="price-change" id="solPriceChange">--</span>
     </div>
 
+
     <div class="container">
-        <h1>Solana Memecoin Predictor</h1>
+        <h1>Solscanai</h1>
         <div class="search-bar">
             <input type="text" id="symbol" placeholder="Enter coin symbol (e.g., $TROLL)">
             <button onclick="getPrediction()">Analyze</button>
@@ -282,7 +284,7 @@
         <div id="trending-list" class="trending-list"></div>
         
         <div id="logo-container" style="text-align: center; padding: 50px 20px; background: #262c44; border-radius: 10px; margin-top: 32px;">
-            <img src="/static/logo.png" alt="Solana Memecoin Predictor Logo" style="max-width: 350px; width: 100%; height: auto;">
+            <img src="/static/logo.png" alt="Solscanai Logo" style="max-width: 350px; width: 100%; height: auto;">
         </div>
         
         <div id="result" style="display: none;"></div>
@@ -311,6 +313,7 @@
             document.getElementById('disclaimerModal').classList.remove('active');
             localStorage.setItem('disclaimerAccepted', 'true');
         }
+
 
         window.addEventListener('load', function() {
             const accepted = localStorage.getItem('disclaimerAccepted');
@@ -485,6 +488,7 @@
                 const allLabels = data.history.map(p => new Date(p.time));
                 const allPrices = data.history.map(p => p.price);
 
+
                 const shortLabels = allLabels.slice(-20).map(d => d.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}));
                 const shortPrices = allPrices.slice(-20);
                 
@@ -500,6 +504,7 @@
                     const noise = (Math.random() - 0.5) * 0.003;
                     shortFuturePrices.push(lastPrice * (1 + (trend + noise) * i * 0.15));
                 }
+
 
                 if (shortTermChartInstance) shortTermChartInstance.destroy();
                 shortTermChartInstance = new Chart(shortTermEl, {
@@ -533,12 +538,14 @@
                 });
                 shortTermContainer.style.display = "block";
 
+
                 const samplingRate = 5;
                 const longLabelsRaw = allLabels.map(d => d.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}));
                 const longLabels = longLabelsRaw.filter((_, i) => i % samplingRate === 0);
                 const longPricesRaw = allPrices.filter((_, i) => i % samplingRate === 0);
                 
                 const longPrices = smoothData(longPricesRaw, 3);
+
 
                 let longFuturePrices = [];
                 let longFutureLabels = [];
@@ -552,6 +559,7 @@
                     const noise = (Math.random() - 0.5) * 0.001;
                     longFuturePrices.push(lastPrice * (1 + (baseTrend + cyclical + noise) * i * 0.02));
                 }
+
 
                 if (longTermChartInstance) longTermChartInstance.destroy();
                 longTermChartInstance = new Chart(longTermEl, {
