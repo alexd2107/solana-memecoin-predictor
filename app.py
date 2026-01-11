@@ -7,10 +7,7 @@ import numpy as np
 from datetime import datetime, timedelta
 import random
 import base64
-import os
-import json
 from openai import OpenAI
-
 
 app = FastAPI()
 
@@ -22,6 +19,13 @@ BITQUERY_API_KEY = "ory_at_f1B3dQRfIiJSDEKQOkxr4OXXQ1tMwcMN6CQuIWjevc4.4ySJCw0ZU
 MORALIS_API_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJub25jZSI6ImU0ZGQzYzQyLWIyYjgtNDNkZC1iZmE4LTgzMmU3NTgzNzM3YiIsIm9yZ0lkIjoiNDA5MjA3IiwidXNlcklkIjoiNDIwNTY5IiwidHlwZUlkIjoiNjljNzBmMzYtNzBjMS00OTVlLThkNzAtYjM2NzRlMzFjYzExIiwidHlwZSI6IlBST0pFQ1QiLCJpYXQiOjE3MzAwNzQ2MDUsImV4cCI6NDg4NTgzNDYwNX0.ZHXgLyqMR9ijN-vKFxzxgwf0WPKJXcmdsFQCZsDIzOI"
 OPENAI_API_KEY = "sk-proj-mz9TE9TCZnsq66V3O-C1M1JjD80Q92tsEEu4WJutZcjkqSKCf_yN8Cy3FdH-4DafD56-YxBvzfT3BlbkFJwNc0wDdGkEKpD6wvRcO8K-CqmIY4Kz1DVPJHNy-oi5z_zNgjw4P4zMuOSk-cC9XQ19fqisA"
 
+# Solscan Pro API key
+SOLSCAN_API_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJjcmVhdGVkQXQiOjE3NjgxMzcwODYwMTYsImVtYWlsIjoic29jY2VyYWxleGRva29AZ21haWwuY29tIiwiYWN0aW9uIjoidG9rZW4tYXBpIiwiYXBpVmVyc2lvbiI6InYyIiwiaWF0IjoxNzY4MTM3MDg2fQ.df2kEcUDB_Ti_UKv6gaiJ8CERFlsBpiQ8XIuLEdb4XE"
+
+# Helius DAS API key (for creator history)
+HELIUS_API_KEY = "aa25304b-753b-466b-ad17-598a69c0cb7c"
+HELIUS_URL = f"https://mainnet.helius-rpc.com/?api-key={HELIUS_API_KEY}"
+
 # Discord Webhook
 DISCORD_WEBHOOK_URL = "https://discord.com/api/webhooks/1437292750960594975/2EHZkITnwOC3PwG-h1es1hokmehqlcvUpP6QJPMsIdMjI54YZtP0NdNyEzuE-CCwbRF5"
 
@@ -32,39 +36,76 @@ client = OpenAI(api_key=OPENAI_API_KEY)
 try:
     with open('solana_model.pkl', 'rb') as f:
         model = pickle.load(f)
-except:
+except Exception:
     model = None
     print("Warning: Model file not found")
 
 
-# ===== NEW: On-chain + creator history helpers (stubbed) =====
+# ===== On-chain + creator history helpers =====
 
 def get_token_onchain_info(mint_address: str) -> dict:
     """
-    TODO: Replace this stub with a real Solana analytics API call.
-    It should return:
-      - creator address
-      - top holders with percentage of supply
-      - whether LP is locked
-      - total supply
+    Use Solscan Pro API to fetch top holders for this token.
+    Powers dev_hold_pct / top5_pct risk checks.
     """
-    # Example stub structure – replace with real data
-    return {
-        "creator": None,  # "CREATOR_WALLET_ADDRESS"
-        "top_holders": [
-            # Example:
-            # {"address": "DEV_WALLET", "pct": 0.09},
-            # {"address": "WHALE_1", "pct": 0.15},
-        ],
-        "lp_locked": True,
-        "total_supply": 1_000_000_000
+    url = "https://pro-api.solscan.io/v2.0/token/holdersv2"
+    params = {
+        "address": mint_address,
+        "page": 1,
+        "page_size": 50
     }
+    headers = {
+        "accept": "application/json",
+        "token": SOLSCAN_API_KEY
+    }
+
+    try:
+        resp = requests.get(url, headers=headers, params=params, timeout=10)
+        if resp.status_code != 200:
+            print("Solscan holders error:", resp.status_code, resp.text)
+            return {
+                "creator": None,
+                "top_holders": [],
+                "lp_locked": True,
+                "total_supply": 0
+            }
+
+        data = resp.json()
+        holders_raw = data.get("data", []) or []
+
+        top_holders = []
+        for h in holders_raw[:10]:
+            pct_raw = h.get("percentage", 0.0)
+            try:
+                pct = float(pct_raw) / 100.0
+            except Exception:
+                pct = 0.0
+            top_holders.append({
+                "address": h.get("owner"),
+                "pct": pct
+            })
+
+        total_supply = data.get("total", 0)
+
+        # Creator + LP lock would need extra endpoints; set placeholders for now.
+        return {
+            "creator": None,
+            "top_holders": top_holders,
+            "lp_locked": True,
+            "total_supply": total_supply
+        }
+
+    except Exception as e:
+        print("Solscan holders exception:", e)
+        return {
+            "creator": None,
+            "top_holders": [],
+            "lp_locked": True,
+            "total_supply": 0
+        }
 
 
 def get_holder_metrics(onchain_info: dict) -> dict:
-    """
-    Convert raw on-chain holder info into the metrics the risk gate needs.
-    """
     top_holders = onchain_info.get("top_holders", []) or []
     dev_hold_pct = top_holders[0]["pct"] if top_holders else 0.0
     top5_pct = sum(h.get("pct", 0.0) for h in top_holders[:5])
@@ -81,23 +122,54 @@ def get_holder_metrics(onchain_info: dict) -> dict:
 
 def get_creator_history(creator_address: str | None) -> dict | None:
     """
-    TODO: Replace this stub with logic that:
-      - Finds tokens previously created by this wallet
-      - Classifies which ones rugged
+    v1 creator history using Helius DAS getAssetsByCreator.
+    Currently counts how many assets the creator has; rug classification can be added later.
     """
     if not creator_address:
         return None
 
-    # Example stub – treat unknown creator as no prior rugs
-    return {
-        "total_tokens": 0,
-        "rugged_tokens": 0,
-        "rug_rate": 0.0,
-        "last_rug_days_ago": None
-    }
+    try:
+        resp = requests.post(
+            HELIUS_URL,
+            headers={"Content-Type": "application/json"},
+            json={
+                "jsonrpc": "2.0",
+                "id": "creator-history",
+                "method": "getAssetsByCreator",
+                "params": {
+                    "creatorAddress": creator_address,
+                    "onlyVerified": True,
+                    "page": 1,
+                    "limit": 1000,
+                },
+            },
+            timeout=10,
+        )
+
+        if resp.status_code != 200:
+            print("Helius getAssetsByCreator error:", resp.status_code, resp.text)
+            return None
+
+        result = resp.json().get("result", {})
+        items = result.get("items", []) or []
+
+        total_tokens = len(items)
+        rugged_tokens = 0  # TODO: inspect each asset and mark rugs
+        rug_rate = (rugged_tokens / total_tokens) if total_tokens > 0 else 0.0
+
+        return {
+            "total_tokens": total_tokens,
+            "rugged_tokens": rugged_tokens,
+            "rug_rate": rug_rate,
+            "last_rug_days_ago": None,
+        }
+
+    except Exception as e:
+        print("Helius creator history exception:", e)
+        return None
 
 
-# ===== NEW: Risk gate =====
+# ===== Risk gate =====
 
 def risk_gate(price: float,
               volume24h: float,
@@ -109,7 +181,7 @@ def risk_gate(price: float,
 
     vol_liq_ratio = volume24h / liquidity if liquidity > 0 else 0
 
-    # Existing pump & dump style checks (structural)
+    # Pump & dump / structural checks
     if vol_liq_ratio > 5 and liquidity < 50000:
         high_risk = True
         reasons.append("🚨 EXTREME volume/liquidity ratio with low liquidity — likely pump scheme")
@@ -142,7 +214,7 @@ def risk_gate(price: float,
             high_risk = True
             reasons.append("🚨 Liquidity is not locked — common rug‑pull pattern")
 
-    # Creator history checks
+    # Creator history (will matter once rug_rate > 0)
     if creator_history:
         rug_rate = creator_history.get("rug_rate", 0)
         rugged_tokens = creator_history.get("rugged_tokens", 0)
@@ -165,18 +237,16 @@ def risk_gate(price: float,
 def send_discord_notification(symbol: str, token_name: str = None, price: float = None,
                               prediction: str = None, volume24h: float = None,
                               liquidity: float = None):
-    """Send search notification to Discord"""
     try:
-        # Determine embed color based on prediction (multi‑X tiers)
-        color = 5814783  # Default purple
+        color = 5814783
         if prediction and "10x+ GAIN" in prediction:
-            color = 5763719  # Strong green
+            color = 5763719
         elif prediction and "5x GAIN" in prediction:
-            color = 5763719  # Green
+            color = 5763719
         elif prediction and "2x GAIN" in prediction:
-            color = 16776960  # Yellow
+            color = 16776960
         elif prediction and ("LIMITED UPSIDE" in prediction or "AVOID" in prediction):
-            color = 15548997  # Red
+            color = 15548997
 
         embed = {
             "title": "🔍 New Crypto Search",
@@ -201,7 +271,6 @@ def send_discord_notification(symbol: str, token_name: str = None, price: float 
             embed["fields"].append({"name": "🎯 Prediction", "value": prediction, "inline": False})
 
         payload = {"embeds": [embed]}
-
         requests.post(DISCORD_WEBHOOK_URL, json=payload, timeout=5)
     except Exception as e:
         print(f"Discord notification failed: {e}")
@@ -218,12 +287,10 @@ async def get_api():
 
 
 def get_dexscreener_chart_url(mint_address: str) -> str:
-    """Generate Dexscreener chart URL for a token"""
     return f"https://dexscreener.com/solana/{mint_address}"
 
 
 def analyze_chart_image(chart_url: str) -> str:
-    """Analyze chart image using GPT-4 Vision"""
     try:
         response = requests.get(chart_url, timeout=10)
         if response.status_code != 200:
@@ -276,7 +343,7 @@ def predict_trend(price: float,
                   creator_history: dict | None = None) -> dict:
     """Predict if token can achieve multi‑X gains with detailed reasoning"""
 
-    # ---- RISK GATE FIRST (rug/pump + wallets + creator history) ----
+    # Risk gate first
     high_risk, reasons, vol_liq_ratio = risk_gate(
         price,
         volume24h,
@@ -310,15 +377,12 @@ def predict_trend(price: float,
             'chart_analysis': ""
         }
 
-    # ---- If passes risk gate, run existing upside scoring ----
-
+    # Upside scoring
     vol_liq_ratio = volume24h / liquidity if liquidity > 0 else 0
-
-    # === 30%+ / multi‑X GAIN SCORING SYSTEM (0‑17 points) ===
     gain_score = 0
     reasoning_parts = []
 
-    # 1. Price Analysis (0‑4)
+    # 1. Price Analysis
     if price < 0.00001:
         gain_score += 4
         reasoning_parts.append(f"✅ Ultra-low price (${price:.8f}) — micro-cap potential (+4)")
@@ -334,7 +398,7 @@ def predict_trend(price: float,
     else:
         reasoning_parts.append(f"⚠️ Higher price (${price:.4f}) — less explosive potential (0)")
 
-    # 2. Volume/Liquidity Ratio (0‑4)
+    # 2. Volume/Liquidity Ratio
     if 1 <= vol_liq_ratio <= 3:
         gain_score += 4
         reasoning_parts.append(f"✅ Optimal volume/liquidity ratio ({vol_liq_ratio:.2f}) — healthy trading (+4)")
@@ -347,7 +411,7 @@ def predict_trend(price: float,
     else:
         reasoning_parts.append(f"⚠️ Volume/Liquidity Ratio: {vol_liq_ratio:.2f} — TOO HIGH, possible pump scheme.")
 
-    # 3. ML Model Prediction (0‑3)
+    # 3. ML Model Prediction
     ml_prediction = "Unknown"
     ml_confidence = 0
     if model:
@@ -357,7 +421,7 @@ def predict_trend(price: float,
             probabilities = model.predict_proba(features)[0]
             ml_confidence = max(probabilities) * 100
 
-            if prediction == 2:  # Up
+            if prediction == 2:
                 ml_prediction = "up"
                 if ml_confidence > 70:
                     gain_score += 3
@@ -368,16 +432,16 @@ def predict_trend(price: float,
                 else:
                     gain_score += 1
                     reasoning_parts.append(f"⚡ ML Model: Weak 'UP' signal ({ml_confidence:.0f}% confidence) (+1)")
-            elif prediction == 1:  # Sideways
+            elif prediction == 1:
                 ml_prediction = "sideways"
                 reasoning_parts.append("⚠️ ML Model: 'SIDEWAYS' — neutral momentum (0)")
-            else:  # Down
+            else:
                 ml_prediction = "down"
                 reasoning_parts.append("❌ ML Model: 'DOWN' signal — bearish (0)")
         except Exception:
             reasoning_parts.append("⚠️ ML Model: unavailable")
 
-    # 4. Volume Intensity (0‑3)
+    # 4. Volume Intensity
     if volume24h > 2000000:
         gain_score += 3
         reasoning_parts.append(f"✅ Exceptionally high trading volume (${volume24h:,.0f}/24h) — strong momentum (+3)")
@@ -390,7 +454,7 @@ def predict_trend(price: float,
     else:
         reasoning_parts.append(f"⚠️ Low volume (${volume24h:,.0f}/24h) — limited momentum (0)")
 
-    # 5. Liquidity Sweet Spot (0‑2)
+    # 5. Liquidity Sweet Spot
     if 30000 <= liquidity <= 300000:
         gain_score += 2
         reasoning_parts.append(f"✅ Good liquidity (${liquidity:,.0f}) — optimal for big moves (+2)")
@@ -400,7 +464,7 @@ def predict_trend(price: float,
     else:
         reasoning_parts.append(f"⚠️ Liquidity (${liquidity:,.0f}) — outside optimal range (0)")
 
-    # 6. Red Flags (negative)
+    # 6. Red Flags
     if liquidity < 20000:
         gain_score -= 3
         reasoning_parts.append(f"❌ Very low liquidity (${liquidity:,.0f}) — high risk (-3)")
@@ -410,7 +474,7 @@ def predict_trend(price: float,
 
     gain_score = max(0, gain_score)
 
-    # === FINAL EVALUATION WITH MULTI‑X TIERS ===
+    # Final tiers
     if gain_score >= 15:
         prediction_text = "🔥 10x+ GAIN POTENTIAL"
         confidence_level = "VERY HIGH CONFIDENCE"
@@ -485,7 +549,6 @@ def predict_trend(price: float,
 
 @app.get("/api/predict")
 async def predict(symbol: str):
-    """Main prediction endpoint with comprehensive analysis"""
     try:
         # Dexscreener
         search_url = f"https://api.dexscreener.com/latest/dex/search?q={symbol}"
@@ -502,7 +565,6 @@ async def predict(symbol: str):
                 volume24h = float(pair.get('volume', {}).get('h24', 0))
                 liquidity = float(pair.get('liquidity', {}).get('usd', 0))
 
-                # NEW: on-chain + creator history for risk gate
                 onchain_info = get_token_onchain_info(token_address)
                 holder_metrics = get_holder_metrics(onchain_info)
                 creator_addr = onchain_info.get("creator")
@@ -553,7 +615,6 @@ async def predict(symbol: str):
             volume24h = 100000
             liquidity = 50000
 
-            # NEW: on-chain + creator history for risk gate (using symbol as mint)
             onchain_info = get_token_onchain_info(symbol)
             holder_metrics = get_holder_metrics(onchain_info)
             creator_addr = onchain_info.get("creator")
@@ -638,7 +699,6 @@ async def predict(symbol: str):
                 volume24h = 100000
                 liquidity = 50000
 
-                # NEW: on-chain + creator history for risk gate (using symbol as mint)
                 onchain_info = get_token_onchain_info(symbol)
                 holder_metrics = get_holder_metrics(onchain_info)
                 creator_addr = onchain_info.get("creator")
