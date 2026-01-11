@@ -87,7 +87,6 @@ def get_token_onchain_info(mint_address: str) -> dict:
 
         total_supply = data.get("total", 0)
 
-        # Creator + LP lock would need extra endpoints; set placeholders for now.
         return {
             "creator": None,
             "top_holders": top_holders,
@@ -120,15 +119,21 @@ def get_holder_metrics(onchain_info: dict) -> dict:
     }
 
 
+def get_dexscreener_chart_url(mint_address: str) -> str:
+    """Generate Dexscreener chart URL for a token"""
+    return f"https://dexscreener.com/solana/{mint_address}"
+
+
 def get_creator_history(creator_address: str | None) -> dict | None:
     """
-    v1 creator history using Helius DAS getAssetsByCreator.
-    Currently counts how many assets the creator has; rug classification can be added later.
+    v2 creator history: analyze past token charts to detect rug patterns.
+    Uses GPT-4o Vision to classify each past token's chart as rug or legitimate.
     """
     if not creator_address:
         return None
 
     try:
+        # Get all assets created by this wallet
         resp = requests.post(
             HELIUS_URL,
             headers={"Content-Type": "application/json"},
@@ -154,8 +159,74 @@ def get_creator_history(creator_address: str | None) -> dict | None:
         items = result.get("items", []) or []
 
         total_tokens = len(items)
-        rugged_tokens = 0  # TODO: inspect each asset and mark rugs
-        rug_rate = (rugged_tokens / total_tokens) if total_tokens > 0 else 0.0
+        rugged_tokens = 0
+
+        # Analyze first 10 past tokens (to avoid excessive API calls)
+        for asset in items[:10]:
+            mint = asset.get("id")
+            if not mint:
+                continue
+
+            # Get chart for this past token
+            chart_url = get_dexscreener_chart_url(mint)
+            
+            try:
+                chart_response = requests.get(chart_url, timeout=10)
+                if chart_response.status_code != 200:
+                    continue
+
+                image_base64 = base64.b64encode(chart_response.content).decode('utf-8')
+
+                # Ask GPT-4o Vision to classify this chart
+                vision_response = client.chat.completions.create(
+                    model="gpt-4o",
+                    messages=[
+                        {
+                            "role": "user",
+                            "content": [
+                                {
+                                    "type": "text",
+                                    "text": """Analyze this cryptocurrency chart and classify it:
+
+Does this show a PUMP-AND-DUMP / RUG PULL pattern?
+
+Rug indicators:
+- Parabolic spike followed by 80%+ drop
+- Sudden liquidity drain
+- Volume spike then dead volume
+- No recovery after crash
+
+Answer with:
+RUG: YES or RUG: NO
+
+Then briefly explain why in 1-2 sentences."""
+                                },
+                                {
+                                    "type": "image_url",
+                                    "image_url": {
+                                        "url": f"data:image/png;base64,{image_base64}"
+                                    }
+                                }
+                            ]
+                        }
+                    ],
+                    max_tokens=200
+                )
+
+                analysis = vision_response.choices[0].message.content
+                
+                # Check if GPT classified it as a rug
+                if "RUG: YES" in analysis or ("pump" in analysis.lower() and "dump" in analysis.lower()):
+                    rugged_tokens += 1
+                    print(f"Rug detected for {mint}: {analysis[:100]}")
+
+            except Exception as e:
+                print(f"Chart analysis error for {mint}: {e}")
+                continue
+
+        rug_rate = (rugged_tokens / min(total_tokens, 10)) if total_tokens > 0 else 0.0
+
+        print(f"Creator {creator_address}: {rugged_tokens}/{min(total_tokens, 10)} tokens rugged ({rug_rate*100:.0f}% rug rate)")
 
         return {
             "total_tokens": total_tokens,
@@ -214,7 +285,7 @@ def risk_gate(price: float,
             high_risk = True
             reasons.append("🚨 Liquidity is not locked — common rug‑pull pattern")
 
-    # Creator history (will matter once rug_rate > 0)
+    # Creator history with chart analysis
     if creator_history:
         rug_rate = creator_history.get("rug_rate", 0)
         rugged_tokens = creator_history.get("rugged_tokens", 0)
@@ -224,11 +295,11 @@ def risk_gate(price: float,
             high_risk = True
             reasons.append(
                 f"🚨 Creator has rugged {rugged_tokens}/{total_tokens} previous tokens "
-                f"({rug_rate*100:.0f}% rug rate)."
+                f"({rug_rate*100:.0f}% rug rate based on chart analysis)."
             )
         elif rugged_tokens >= 1 and rug_rate >= 0.25:
             reasons.append(
-                f"⚠️ Creator has prior rug history: {rugged_tokens}/{total_tokens} tokens."
+                f"⚠️ Creator has prior rug history: {rugged_tokens}/{total_tokens} tokens showed rug patterns."
             )
 
     return high_risk, reasons, vol_liq_ratio
@@ -245,7 +316,7 @@ def send_discord_notification(symbol: str, token_name: str = None, price: float 
             color = 5763719
         elif prediction and "2x GAIN" in prediction:
             color = 16776960
-        elif prediction and ("LIMITED UPSIDE" in prediction or "AVOID" in prediction):
+        elif prediction and ("LIMITED UPSIDE" in prediction or "AVOID" in prediction or "RUG PULL" in prediction):
             color = 15548997
 
         embed = {
@@ -286,11 +357,8 @@ async def get_api():
     return {"message": "Solana Memecoin Predictor API", "status": "running"}
 
 
-def get_dexscreener_chart_url(mint_address: str) -> str:
-    return f"https://dexscreener.com/solana/{mint_address}"
-
-
 def analyze_chart_image(chart_url: str) -> str:
+    """Analyze chart image using GPT-4 Vision"""
     try:
         response = requests.get(chart_url, timeout=10)
         if response.status_code != 200:
@@ -357,7 +425,7 @@ def predict_trend(price: float,
 
 
 🚨 PREDICTION: AVOID THIS TOKEN
-⚠️ CONFIDENCE: DO NOT TRADE
+⚠️ CONFIDENCE: HIGH CHANCE OF RUG PULL
 
 
 {chr(10).join(reasons)}
@@ -369,7 +437,7 @@ def predict_trend(price: float,
 
 🛑 RECOMMENDATION: Do NOT enter this trade."""
         return {
-            'prediction': '🚨 AVOID - HIGH RUG/PUMP RISK',
+            'prediction': '🚨 AVOID - HIGH CHANCE OF RUG PULL',
             'confidence': 0,
             'reasoning': reasoning,
             'highest_price': price * 1.05,
@@ -889,3 +957,4 @@ async def get_solana_price():
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=10000)
+
