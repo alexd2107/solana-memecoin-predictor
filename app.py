@@ -900,6 +900,7 @@ async def get_history(symbol: str):
             # Limited upside: sideways with volatility
             base_trend = 0.0
             volatility = 0.02
+            
 # Generate future prices with realistic movement
 last_price = current_price
 for i in range(1, 13):
