@@ -900,23 +900,26 @@ async def get_history(symbol: str):
             # Limited upside: sideways with volatility
             base_trend = 0.0
             volatility = 0.02
-
-        # Generate future prices with realistic movement
-        last_price = current_price
-        for i in range(1, 13):
-            future_time = (base_time + timedelta(minutes=i * 5)).isoformat()
-            
-            # Add trend + noise for realistic movement
-            trend_component = base_trend * i * 0.4
-            noise = random.uniform(-volatility, volatility)
-            
-            # Add momentum (price tends to continue in direction)
-            if i > 1:
-                momentum = (future[-1]['price'] - last_price) / last_price * 0.3
-            else:
-                momentum = 0
-            
-            future_price = current_price * (1 + trend_component + noise + momentum)
+# Generate future prices with realistic movement
+last_price = current_price
+for i in range(1, 13):
+    future_time = (base_time + timedelta(minutes=i * 5)).isoformat()
+    
+    # Add trend + noise for realistic movement
+    trend_component = base_trend * i * 0.4
+    noise = random.uniform(-volatility * 1.5, volatility * 1.5)  # More noise
+    
+    # Add momentum (price tends to continue in direction) with oscillation
+    if i > 1:
+        price_change = (future[-1]['price'] - last_price) / last_price
+        momentum = price_change * 0.5  # Stronger momentum
+        # Add oscillation to prevent straight lines
+        oscillation = 0.01 * random.choice([-1, 1]) * (i % 3)
+    else:
+        momentum = 0
+        oscillation = 0
+    
+    future_price = current_price * (1 + trend_component + noise + momentum + oscillation)
             future_price = max(future_price, current_price * 0.5)  # Don't drop below 50%
             
             future.append({'time': future_time, 'price': future_price})
