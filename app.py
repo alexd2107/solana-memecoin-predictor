@@ -831,12 +831,35 @@ async def get_history(symbol: str):
         response = requests.get(search_url, timeout=10)
 
         current_price = 0.0001
+        token_address = symbol
+        volume24h = 100000
+        liquidity = 50000
+        
         if response.status_code == 200:
             data = response.json()
             if data.get('pairs'):
                 pair = data['pairs'][0]
                 current_price = float(pair.get('priceUsd', 0.0001))
+                token_address = pair.get('baseToken', {}).get('address', symbol)
+                volume24h = float(pair.get('volume', {}).get('h24', 0))
+                liquidity = float(pair.get('liquidity', {}).get('usd', 0))
 
+        # Get prediction to determine chart behavior
+        onchain_info = get_token_onchain_info(token_address)
+        holder_metrics = get_holder_metrics(onchain_info)
+        creator_addr = onchain_info.get("creator")
+        creator_history = get_creator_history(creator_addr)
+
+        result = predict_trend(
+            current_price,
+            volume24h,
+            liquidity,
+            token_address,
+            holder_metrics=holder_metrics,
+            creator_history=creator_history
+        )
+
+        # Generate historical data
         history = []
         base_time = datetime.now()
 
@@ -848,12 +871,56 @@ async def get_history(symbol: str):
 
         history.append({'time': base_time.isoformat(), 'price': current_price})
 
+        # Generate future predictions based on risk/upside analysis
         future = []
+        prediction = result['prediction']
+        
+        # Determine trend direction and volatility based on prediction
+        if 'AVOID' in prediction or 'RUG' in prediction:
+            # Rug/high risk: downward trend with high volatility
+            base_trend = -0.015  # -1.5% per step
+            volatility = 0.03
+        elif '10x+' in prediction:
+            # 10x potential: strong upward with moderate volatility
+            base_trend = 0.012
+            volatility = 0.025
+        elif '5x' in prediction:
+            # 5x potential: good upward with moderate volatility
+            base_trend = 0.008
+            volatility = 0.02
+        elif '2x' in prediction:
+            # 2x potential: modest upward with some volatility
+            base_trend = 0.005
+            volatility = 0.018
+        elif '30%+' in prediction:
+            # 30% potential: slight upward with volatility
+            base_trend = 0.003
+            volatility = 0.015
+        else:
+            # Limited upside: sideways with volatility
+            base_trend = 0.0
+            volatility = 0.02
+
+        # Generate future prices with realistic movement
+        last_price = current_price
         for i in range(1, 13):
             future_time = (base_time + timedelta(minutes=i * 5)).isoformat()
-            trend = random.uniform(0.001, 0.015)
-            future_price = current_price * (1 + trend * i * 0.3)
+            
+            # Add trend + noise for realistic movement
+            trend_component = base_trend * i * 0.4
+            noise = random.uniform(-volatility, volatility)
+            
+            # Add momentum (price tends to continue in direction)
+            if i > 1:
+                momentum = (future[-1]['price'] - last_price) / last_price * 0.3
+            else:
+                momentum = 0
+            
+            future_price = current_price * (1 + trend_component + noise + momentum)
+            future_price = max(future_price, current_price * 0.5)  # Don't drop below 50%
+            
             future.append({'time': future_time, 'price': future_price})
+            last_price = future_price
 
         all_prices = [p['price'] for p in history] + [p['price'] for p in future]
 
@@ -874,7 +941,7 @@ async def get_history(symbol: str):
                         'price': fallback_price * random.uniform(0.95, 1.05)}
                        for i in range(10, 0, -1)],
             'future': [{'time': (current_time + timedelta(hours=i)).isoformat(),
-                       'price': fallback_price * random.uniform(1.0, 1.1)}
+                       'price': fallback_price * (1 + random.uniform(-0.02, 0.02) * i)}
                       for i in range(1, 5)],
             'high_prediction': fallback_price * 1.1,
             'low_prediction': fallback_price * 0.95
@@ -957,4 +1024,3 @@ async def get_solana_price():
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=10000)
-
