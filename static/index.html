@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Memecoin Metrics</title>
+    <title>Market Metrics - Crypto & Stocks</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
@@ -81,22 +81,26 @@
             padding: 12px 20px;
             text-align: center;
             font-weight: bold;
-            font-size: 1.1em;
+            font-size: 1em;
             box-shadow: 0 2px 8px rgba(0,0,0,0.3);
             position: sticky;
             top: 0;
             z-index: 1000;
+            display: flex;
+            justify-content: center;
+            flex-wrap: wrap;
+            gap: 20px;
         }
         .price-bar span {
-            margin: 0 15px;
+            margin: 0 8px;
         }
         .price-value {
             color: #fff;
-            font-size: 1.2em;
+            font-size: 1.1em;
         }
         .price-change {
-            font-size: 0.9em;
-            padding: 4px 8px;
+            font-size: 0.85em;
+            padding: 3px 7px;
             border-radius: 4px;
             background: rgba(255,255,255,0.2);
         }
@@ -106,17 +110,23 @@
         .price-down {
             color: #ff6b6b;
         }
-        .container {
-            max-width: 640px;
-            margin: 60px auto;
+        .two-column-layout {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            max-width: 1400px;
+            margin: 40px auto;
+            padding: 0 20px;
+        }
+        .column {
             background: rgba(24, 28, 41, 0.92);
             border-radius: 16px;
             box-shadow: 0 2px 24px 0 #0002;
             padding: 36px 30px 30px 30px;
         }
-        h1 {
+        .column h1 {
             margin-top: 0;
-            font-size: 2.2em;
+            font-size: 2em;
             text-align: center;
             letter-spacing: 0.02em;
         }
@@ -150,15 +160,16 @@
         button:hover {
             background: #2f76e2;
         }
-        #result {
+        .result {
             margin-top: 32px;
             font-size: 1.07em;
             background: #262c44;
             border-radius: 10px;
             padding: 22px 16px;
             min-height: 60px;
-            word-break: break-all;
+            word-break: break-word;
             white-space: pre-line;
+            display: none;
         }
         .trending-list {
             margin: 24px 0 10px 0;
@@ -228,6 +239,11 @@
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
         }
+        @media (max-width: 1200px) {
+            .two-column-layout {
+                grid-template-columns: 1fr;
+            }
+        }
         @media (max-width: 700px) {
             .modal-content {
                 padding: 30px 20px;
@@ -239,18 +255,29 @@
                 font-size: 0.95em;
             }
             .price-bar {
-                font-size: 0.9em;
+                font-size: 0.85em;
                 padding: 10px;
             }
             .price-value {
                 font-size: 1em;
             }
             .price-bar span {
-                margin: 0 8px;
+                margin: 0 5px;
             }
-            .container { margin: 25px 5px; padding: 22px 7px 18px 7px; }
-            h1 { font-size: 1.2em; }
-            #result { font-size: 1em; padding: 14px 8px; }
+            .two-column-layout {
+                margin: 20px 10px;
+                padding: 0 10px;
+            }
+            .column {
+                padding: 22px 15px 18px 15px;
+            }
+            .column h1 {
+                font-size: 1.4em;
+            }
+            .result {
+                font-size: 1em;
+                padding: 14px 8px;
+            }
         }
     </style>
 </head>
@@ -267,36 +294,74 @@
         </div>
     </div>
 
-    <div class="price-bar" id="solanaPrice">
-        <span>☀️ SOL</span>
-        <span class="price-value" id="solPriceValue">Loading...</span>
-        <span class="price-change" id="solPriceChange">--</span>
+    <div class="price-bar">
+        <div>
+            <span>☀️ SOL</span>
+            <span class="price-value" id="solPriceValue">Loading...</span>
+            <span class="price-change" id="solPriceChange">--</span>
+        </div>
+        <div id="marketIndices">
+            <span>📊 S&P 500</span>
+            <span class="price-value" id="spPrice">--</span>
+            <span class="price-change" id="spChange">--</span>
+        </div>
     </div>
 
-    <div class="container">
-        <h1>Memecoin Metrics</h1>
-        <div class="search-bar">
-            <input type="text" id="symbol" placeholder="Enter coin symbol (e.g., $TROLL)">
-            <button onclick="getPrediction()">Analyze</button>
+    <div class="two-column-layout">
+        <!-- LEFT COLUMN: CRYPTO ANALYST -->
+        <div class="column crypto-column">
+            <h1>🪙 Crypto Analyst</h1>
+            <div class="search-bar">
+                <input type="text" id="cryptoSymbol" placeholder="Enter coin symbol (e.g., $TROLL)">
+                <button onclick="analyzeCrypto()">Analyze</button>
+            </div>
+            <div id="cryptoTrending" class="trending-list"></div>
+            
+            <div id="cryptoLogoContainer" style="text-align: center; padding: 50px 20px; background: #262c44; border-radius: 10px; margin-top: 32px;">
+                <img src="/static/logo.png?v=1" alt="Crypto Logo" style="max-width: 300px; width: 100%; height: auto;">
+            </div>
+            
+            <div id="cryptoResult" class="result"></div>
+            
+            <div id="cryptoShortTermContainer" class="chart-container">
+                <div class="chart-title">📈 Short-Term (1 Hour Prediction)</div>
+                anvas id="cryptoShortTermChart"></canvas>
+            </div>
+            
+            <div id="cryptoLongTermContainer" class="chart-container">
+                <div class="chart-title">📊 Long-Term (24 Hour Prediction)</div>
+                anvas id="cryptoLongTermChart"></canvas>
+            </div>
         </div>
-        <div id="trending-list" class="trending-list"></div>
-        
-        <div id="logo-container" style="text-align: center; padding: 50px 20px; background: #262c44; border-radius: 10px; margin-top: 32px;">
-            <img src="/static/logo.png?v=1" alt="Memecoin Metrics Logo" style="max-width: 350px; width: 100%; height: auto;">
-        </div>
-        
-        <div id="result" style="display: none;"></div>
-        
-        <div id="shortTermContainer" class="chart-container">
-            <div class="chart-title">📈 Short-Term (1 Hour Prediction)</div>
-            <canvas id="shortTermChart"></canvas>
-        </div>
-        
-        <div id="longTermContainer" class="chart-container">
-            <div class="chart-title">📊 Long-Term (24 Hour Prediction)</div>
-            <canvas id="longTermChart"></canvas>
+
+        <!-- RIGHT COLUMN: STOCK ANALYST -->
+        <div class="column stock-column">
+            <h1>📈 Stock Analyst</h1>
+            <div class="search-bar">
+                <input type="text" id="stockTicker" placeholder="Enter stock ticker (e.g., AAPL, TSLA)">
+                <button onclick="analyzeStock()">Analyze</button>
+            </div>
+            <div id="stockTrending" class="trending-list"></div>
+            
+            <div id="stockLogoContainer" style="text-align: center; padding: 50px 20px; background: #262c44; border-radius: 10px; margin-top: 32px;">
+                <div style="font-size: 4em;">📊</div>
+                <div style="margin-top: 10px; color: #8fa4d5;">Stock Market Analysis</div>
+            </div>
+            
+            <div id="stockResult" class="result"></div>
+            
+            <div id="stockShortTermContainer" class="chart-container">
+                <div class="chart-title">📈 Short-Term Prediction</div>
+                anvas id="stockShortTermChart"></canvas>
+            </div>
+            
+            <div id="stockLongTermContainer" class="chart-container">
+                <div class="chart-title">📊 Long-Term Prediction</div>
+                anvas id="stockLongTermChart"></canvas>
+            </div>
         </div>
     </div>
+
     <script>
         const symbolToAddress = {
           "$TROLL": "5UUH9RTDiSpq6HKS6bp4NdU9PNJpXRXuiw6ShBTBhgH2",
@@ -304,8 +369,11 @@
           "$NUB": "GtDZKAqvMZMnti46ZewMiXCa4oXF4bZxwQPoKzXPFxZn",
           "$WIF": "EKpQGSJtjMFqKZ9KQanSqYXRcF8fBopzLHYxdM65zcjm"
         };
-        let shortTermChartInstance = null;
-        let longTermChartInstance = null;
+        
+        let cryptoShortTermChart = null;
+        let cryptoLongTermChart = null;
+        let stockShortTermChart = null;
+        let stockLongTermChart = null;
         
         function acceptDisclaimer() {
             document.getElementById('disclaimerModal').classList.remove('active');
@@ -330,25 +398,44 @@
                 }
                 
                 document.getElementById('solPriceValue').textContent = `$${data.price.toFixed(2)}`;
-                
                 const changeElement = document.getElementById('solPriceChange');
                 const changeText = data.change_24h >= 0 ? `+${data.change_24h.toFixed(2)}%` : `${data.change_24h.toFixed(2)}%`;
                 changeElement.textContent = changeText;
                 changeElement.className = 'price-change ' + (data.change_24h >= 0 ? 'price-up' : 'price-down');
             } catch (err) {
-                document.getElementById('solPriceValue').textContent = 'Error loading price';
+                document.getElementById('solPriceValue').textContent = 'Error';
                 console.error('Failed to load Solana price:', err);
             }
         }
         
-        async function loadTrending() {
+        async function loadMarketIndices() {
+            try {
+                const response = await fetch('/api/market-indices');
+                const data = await response.json();
+                
+                if (data.indices && data.indices.length > 0) {
+                    const sp = data.indices.find(idx => idx.name === 'S&P 500');
+                    if (sp) {
+                        document.getElementById('spPrice').textContent = `$${sp.price.toFixed(2)}`;
+                        const changeElement = document.getElementById('spChange');
+                        const changeText = sp.change >= 0 ? `+${sp.change.toFixed(2)}%` : `${sp.change.toFixed(2)}%`;
+                        changeElement.textContent = changeText;
+                        changeElement.className = 'price-change ' + (sp.change >= 0 ? 'price-up' : 'price-down');
+                    }
+                }
+            } catch (err) {
+                console.error('Failed to load market indices:', err);
+            }
+        }
+        
+        async function loadCryptoTrending() {
             try {
                 const response = await fetch('/api/latest-tokens');
                 const data = await response.json();
                 let html = "<b style='font-size:1.05em;'>Trending Solana Tokens</b>";
                 if (data.tokens && data.tokens.length) {
-                    html += data.tokens.slice(0, 6).map((t, i) =>
-                      `<div class='trend-row' onclick="quickSearch('${t.symbol}')">
+                    html += data.tokens.slice(0, 6).map(t =>
+                      `<div class='trend-row' onclick="quickSearchCrypto('${t.symbol}')">
                          <span class='trend-symbol'>${t.symbol}</span>
                          <span class='trend-price'>${t.price}</span>
                       </div>`
@@ -356,15 +443,41 @@
                 } else {
                     html += "<div style='margin-top:12px;'>No trending tokens found.</div>";
                 }
-                document.getElementById("trending-list").innerHTML = html;
+                document.getElementById("cryptoTrending").innerHTML = html;
             } catch (err) {
-                document.getElementById("trending-list").innerHTML = "Trending tokens unavailable.";
+                document.getElementById("cryptoTrending").innerHTML = "Trending tokens unavailable.";
             }
         }
         
-        function quickSearch(symbol) {
-            document.getElementById("symbol").value = symbol;
-            getPrediction();
+        async function loadStockTrending() {
+            try {
+                const response = await fetch('/api/trending-stocks');
+                const data = await response.json();
+                let html = "<b style='font-size:1.05em;'>Popular Stocks</b>";
+                if (data.stocks && data.stocks.length) {
+                    html += data.stocks.map(s =>
+                      `<div class='trend-row' onclick="quickSearchStock('${s.ticker}')">
+                         <span class='trend-symbol'>${s.ticker}</span>
+                         <span class='trend-price'>${s.price}</span>
+                      </div>`
+                    ).join("");
+                } else {
+                    html += "<div style='margin-top:12px;'>No trending stocks found.</div>";
+                }
+                document.getElementById("stockTrending").innerHTML = html;
+            } catch (err) {
+                document.getElementById("stockTrending").innerHTML = "Trending stocks unavailable.";
+            }
+        }
+        
+        function quickSearchCrypto(symbol) {
+            document.getElementById("cryptoSymbol").value = symbol;
+            analyzeCrypto();
+        }
+        
+        function quickSearchStock(ticker) {
+            document.getElementById("stockTicker").value = ticker;
+            analyzeStock();
         }
         
         function getChartOptions(isShortTerm = true) {
@@ -396,11 +509,9 @@
                         callbacks: {
                             label: function(context) {
                                 let label = context.dataset.label || '';
-                                if (label) {
-                                    label += ': ';
-                                }
+                                if (label) label += ': ';
                                 if (context.parsed.y !== null) {
-                                    label += '$' + context.parsed.y.toFixed(8);
+                                    label += '$' + context.parsed.y.toFixed(context.parsed.y >= 1 ? 2 : 8);
                                 }
                                 return label;
                             }
@@ -419,10 +530,7 @@
                             autoSkip: true,
                             autoSkipPadding: 20
                         },
-                        grid: { 
-                            color: 'rgba(143,164,213,0.08)',
-                            drawBorder: false
-                        }
+                        grid: { color: 'rgba(143,164,213,0.08)', drawBorder: false }
                     }, 
                     y: {
                         display: true,
@@ -430,27 +538,16 @@
                             color: '#8fa4d5',
                             font: { size: 11 },
                             callback: function(value) {
-                                if (value >= 1) {
-                                    return '$' + value.toFixed(4);
-                                } else if (value >= 0.0001) {
-                                    return '$' + value.toFixed(6);
-                                } else {
-                                    return '$' + value.toFixed(8);
-                                }
+                                if (value >= 1) return '$' + value.toFixed(4);
+                                else if (value >= 0.0001) return '$' + value.toFixed(6);
+                                else return '$' + value.toFixed(8);
                             },
                             maxTicksLimit: 8
                         },
-                        grid: { 
-                            color: 'rgba(143,164,213,0.12)',
-                            drawBorder: false
-                        }
+                        grid: { color: 'rgba(143,164,213,0.12)', drawBorder: false }
                     }
                 },
-                interaction: {
-                    mode: 'nearest',
-                    axis: 'x',
-                    intersect: false
-                }
+                interaction: { mode: 'nearest', axis: 'x', intersect: false }
             };
         }
         
@@ -466,11 +563,12 @@
             return smoothed;
         }
         
-        async function showCharts(symbol) {
-            const shortTermEl = document.getElementById("shortTermChart");
-            const longTermEl = document.getElementById("longTermChart");
-            const shortTermContainer = document.getElementById("shortTermContainer");
-            const longTermContainer = document.getElementById("longTermContainer");
+        // CRYPTO FUNCTIONS
+        async function showCryptoCharts(symbol) {
+            const shortTermEl = document.getElementById("cryptoShortTermChart");
+            const longTermEl = document.getElementById("cryptoLongTermChart");
+            const shortTermContainer = document.getElementById("cryptoShortTermContainer");
+            const longTermContainer = document.getElementById("cryptoLongTermContainer");
             
             try {
                 const response = await fetch(`/api/history?symbol=${encodeURIComponent(symbol)}`);
@@ -478,38 +576,27 @@
                 if (!data.history || !data.history.length) {
                     shortTermContainer.style.display = "none";
                     longTermContainer.style.display = "none";
-                    document.getElementById("result").innerHTML += "<br><b style='color:#ff887b;'>No chart data is available for this token at the moment.</b>";
                     return;
                 }
                 
                 const allLabels = data.history.map(p => new Date(p.time));
                 const allPrices = data.history.map(p => p.price);
-
                 const shortLabels = allLabels.slice(-20).map(d => d.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}));
                 const shortPrices = allPrices.slice(-20);
                 
-                let shortFuturePrices = [];
-                let shortFutureLabels = [];
+                const futurePrices = data.future.map(p => p.price);
+                const futureLabels = data.future.map(p => new Date(p.time).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}));
                 const lastPrice = shortPrices[shortPrices.length - 1];
-                const lastTime = allLabels[allLabels.length - 1];
                 
-                for (let i = 1; i <= 12; i++) {
-                    const futureTime = new Date(lastTime.getTime() + i * 5 * 60 * 1000);
-                    shortFutureLabels.push(futureTime.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}));
-                    const trend = 0.002;
-                    const noise = (Math.random() - 0.5) * 0.003;
-                    shortFuturePrices.push(lastPrice * (1 + (trend + noise) * i * 0.15));
-                }
-
-                if (shortTermChartInstance) shortTermChartInstance.destroy();
-                shortTermChartInstance = new Chart(shortTermEl, {
+                if (cryptoShortTermChart) cryptoShortTermChart.destroy();
+                cryptoShortTermChart = new Chart(shortTermEl, {
                     type: 'line',
                     data: {
-                        labels: shortLabels.concat(shortFutureLabels),
+                        labels: shortLabels.concat(futureLabels),
                         datasets: [
                             {
                                 label: "Historical Price",
-                                data: shortPrices.concat(Array(shortFuturePrices.length).fill(null)),
+                                data: shortPrices.concat(Array(futurePrices.length).fill(null)),
                                 borderColor: "#5792fe",
                                 backgroundColor: "rgba(87,146,254,0.08)",
                                 pointRadius: 0,
@@ -519,7 +606,7 @@
                             },
                             {
                                 label: "Predicted Price",
-                                data: Array(shortPrices.length - 1).fill(null).concat([lastPrice]).concat(shortFuturePrices),
+                                data: Array(shortPrices.length - 1).fill(null).concat([lastPrice]).concat(futurePrices),
                                 borderColor: "#65e261",
                                 borderDash: [6, 4],
                                 pointRadius: 0,
@@ -532,36 +619,20 @@
                     options: getChartOptions(true)
                 });
                 shortTermContainer.style.display = "block";
-
+                
                 const samplingRate = 5;
-                const longLabelsRaw = allLabels.map(d => d.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}));
-                const longLabels = longLabelsRaw.filter((_, i) => i % samplingRate === 0);
-                const longPricesRaw = allPrices.filter((_, i) => i % samplingRate === 0);
+                const longLabels = allLabels.filter((_, i) => i % samplingRate === 0).map(d => d.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}));
+                const longPrices = smoothData(allPrices.filter((_, i) => i % samplingRate === 0), 3);
                 
-                const longPrices = smoothData(longPricesRaw, 3);
-
-                let longFuturePrices = [];
-                let longFutureLabels = [];
-                
-                for (let i = 1; i <= 24; i++) {
-                    const futureTime = new Date(lastTime.getTime() + i * 60 * 60 * 1000);
-                    longFutureLabels.push(futureTime.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}));
-                    
-                    const baseTrend = 0.0015;
-                    const cyclical = Math.sin(i * Math.PI / 12) * 0.002;
-                    const noise = (Math.random() - 0.5) * 0.001;
-                    longFuturePrices.push(lastPrice * (1 + (baseTrend + cyclical + noise) * i * 0.02));
-                }
-
-                if (longTermChartInstance) longTermChartInstance.destroy();
-                longTermChartInstance = new Chart(longTermEl, {
+                if (cryptoLongTermChart) cryptoLongTermChart.destroy();
+                cryptoLongTermChart = new Chart(longTermEl, {
                     type: 'line',
                     data: {
-                        labels: longLabels.concat(longFutureLabels),
+                        labels: longLabels.concat(futureLabels),
                         datasets: [
                             {
                                 label: "Historical Price",
-                                data: longPrices.concat(Array(longFuturePrices.length).fill(null)),
+                                data: longPrices.concat(Array(futurePrices.length).fill(null)),
                                 borderColor: "#5792fe",
                                 backgroundColor: "rgba(87,146,254,0.08)",
                                 pointRadius: 0,
@@ -571,7 +642,7 @@
                             },
                             {
                                 label: "Predicted Price",
-                                data: Array(longPrices.length - 1).fill(null).concat([lastPrice]).concat(longFuturePrices),
+                                data: Array(longPrices.length - 1).fill(null).concat([lastPrice]).concat(futurePrices),
                                 borderColor: "#65e261",
                                 borderDash: [6, 4],
                                 pointRadius: 0,
@@ -588,56 +659,211 @@
             } catch (err) {
                 shortTermContainer.style.display = "none";
                 longTermContainer.style.display = "none";
-                document.getElementById("result").innerHTML += "<br><b style='color:#ff887b;'>No chart data is available (server error).</b>";
             }
         }
         
-        async function getPrediction() {
-            let symbol = document.getElementById("symbol").value.trim().toUpperCase();
+        async function analyzeCrypto() {
+            let symbol = document.getElementById("cryptoSymbol").value.trim().toUpperCase();
             if (symbolToAddress[symbol]) symbol = symbolToAddress[symbol];
-            const shortTermContainer = document.getElementById("shortTermContainer");
-            const longTermContainer = document.getElementById("longTermContainer");
+            
             if (!symbol) {
-                document.getElementById("result").innerText = "Please enter a coin symbol.";
+                document.getElementById("cryptoResult").innerText = "Please enter a coin symbol.";
+                document.getElementById("cryptoResult").style.display = "block";
                 return;
             }
-            document.getElementById("result").innerHTML = `
+            
+            document.getElementById("cryptoResult").innerHTML = `
                 <div style='display:flex;align-items:center;gap:14px;'>
                   <div class="spinner"></div>
                   <span>Loading analysis for '<b>${symbol}</b>' ...</span>
                 </div>`;
-            document.getElementById("logo-container").style.display = "none";
-            document.getElementById("result").style.display = "block";
-            if (shortTermChartInstance) shortTermChartInstance.destroy();
-            if (longTermChartInstance) longTermChartInstance.destroy();
-            shortTermContainer.style.display = "none";
-            longTermContainer.style.display = "none";
+            document.getElementById("cryptoLogoContainer").style.display = "none";
+            document.getElementById("cryptoResult").style.display = "block";
+            
+            if (cryptoShortTermChart) cryptoShortTermChart.destroy();
+            if (cryptoLongTermChart) cryptoLongTermChart.destroy();
+            document.getElementById("cryptoShortTermContainer").style.display = "none";
+            document.getElementById("cryptoLongTermContainer").style.display = "none";
+            
             try {
                 const response = await fetch(`/api/predict?symbol=${encodeURIComponent(symbol)}`);
                 const data = await response.json();
+                
                 if (data.error) {
-                    document.getElementById("result").innerHTML = `<b style="color:#ff887b;">${data.error}</b>`;
+                    document.getElementById("cryptoResult").innerHTML = `<b style="color:#ff887b;">${data.error}</b>`;
                     return;
                 }
-                document.getElementById("result").innerHTML =
+                
+                const predictionColor = data.prediction && data.prediction.startsWith("🚨 AVOID") ? "#ff6b6b" : "#65e261";
+                
+                document.getElementById("cryptoResult").innerHTML =
                   `<b>Symbol:</b> ${data.symbol}<br>
                    <b>Token Name:</b> ${data.name}<br>
                    <b>Price:</b> $${data.price}<br>
-                   <b>Prediction:</b> <span style="color:#65e261;">${data.prediction}</span><br>
+                   <b>Prediction:</b> <span style="color:${predictionColor};">${data.prediction}</span><br>
                    <b>Confidence:</b> ${data.confidence}%<br>
                    <b>Reasoning:</b> <span style="color:#6fc4fa;white-space:pre-line;">${data.reasoning}</span>`;
-                await showCharts(symbol);
+                
+                if (data.prediction && !data.prediction.startsWith("🚨 AVOID")) {
+                    await showCryptoCharts(symbol);
+                }
             } catch (err) {
-                document.getElementById("result").innerHTML = `<b style="color:#ff887b;">Error fetching analysis. Please try again!</b>`;
+                document.getElementById("cryptoResult").innerHTML = `<b style="color:#ff887b;">Error fetching analysis. Please try again!</b>`;
+            }
+        }
+        
+        // STOCK FUNCTIONS
+        async function showStockCharts(ticker) {
+            const shortTermEl = document.getElementById("stockShortTermChart");
+            const longTermEl = document.getElementById("stockLongTermChart");
+            const shortTermContainer = document.getElementById("stockShortTermContainer");
+            const longTermContainer = document.getElementById("stockLongTermContainer");
+            
+            try {
+                const response = await fetch(`/api/stock-history?ticker=${encodeURIComponent(ticker)}`);
+                const data = await response.json();
+                
+                if (!data.history || !data.history.length) {
+                    shortTermContainer.style.display = "none";
+                    longTermContainer.style.display = "none";
+                    return;
+                }
+                
+                const historyLabels = data.history.map(p => new Date(p.time).toLocaleDateString([], {month:'short', day:'numeric'}));
+                const historyPrices = data.history.map(p => p.price);
+                
+                const futurePrices = data.future.map(p => p.price);
+                const futureLabels = data.future.map(p => new Date(p.time).toLocaleDateString([], {month:'short', day:'numeric'}));
+                const lastPrice = historyPrices[historyPrices.length - 1];
+                
+                if (stockShortTermChart) stockShortTermChart.destroy();
+                stockShortTermChart = new Chart(shortTermEl, {
+                    type: 'line',
+                    data: {
+                        labels: historyLabels.slice(-20).concat(futureLabels),
+                        datasets: [
+                            {
+                                label: "Historical Price",
+                                data: historyPrices.slice(-20).concat(Array(futurePrices.length).fill(null)),
+                                borderColor: "#5792fe",
+                                backgroundColor: "rgba(87,146,254,0.08)",
+                                pointRadius: 0,
+                                borderWidth: 2.5,
+                                tension: 0.35,
+                                fill: true
+                            },
+                            {
+                                label: "Predicted Price",
+                                data: Array(Math.min(20, historyPrices.length) - 1).fill(null).concat([lastPrice]).concat(futurePrices),
+                                borderColor: "#65e261",
+                                borderDash: [6, 4],
+                                pointRadius: 0,
+                                borderWidth: 2.5,
+                                fill: false,
+                                tension: 0.35
+                            }
+                        ]
+                    },
+                    options: getChartOptions(true)
+                });
+                shortTermContainer.style.display = "block";
+                
+                if (stockLongTermChart) stockLongTermChart.destroy();
+                stockLongTermChart = new Chart(longTermEl, {
+                    type: 'line',
+                    data: {
+                        labels: historyLabels.concat(futureLabels),
+                        datasets: [
+                            {
+                                label: "Historical Price",
+                                data: historyPrices.concat(Array(futurePrices.length).fill(null)),
+                                borderColor: "#5792fe",
+                                backgroundColor: "rgba(87,146,254,0.08)",
+                                pointRadius: 0,
+                                borderWidth: 2.5,
+                                tension: 0.4,
+                                fill: true
+                            },
+                            {
+                                label: "Predicted Price",
+                                data: Array(historyPrices.length - 1).fill(null).concat([lastPrice]).concat(futurePrices),
+                                borderColor: "#65e261",
+                                borderDash: [6, 4],
+                                pointRadius: 0,
+                                borderWidth: 2.5,
+                                fill: false,
+                                tension: 0.4
+                            }
+                        ]
+                    },
+                    options: getChartOptions(false)
+                });
+                longTermContainer.style.display = "block";
+                
+            } catch (err) {
                 shortTermContainer.style.display = "none";
                 longTermContainer.style.display = "none";
             }
         }
         
+        async function analyzeStock() {
+            let ticker = document.getElementById("stockTicker").value.trim().toUpperCase();
+            
+            if (!ticker) {
+                document.getElementById("stockResult").innerText = "Please enter a stock ticker.";
+                document.getElementById("stockResult").style.display = "block";
+                return;
+            }
+            
+            document.getElementById("stockResult").innerHTML = `
+                <div style='display:flex;align-items:center;gap:14px;'>
+                  <div class="spinner"></div>
+                  <span>Loading analysis for '<b>${ticker}</b>' ...</span>
+                </div>`;
+            document.getElementById("stockLogoContainer").style.display = "none";
+            document.getElementById("stockResult").style.display = "block";
+            
+            if (stockShortTermChart) stockShortTermChart.destroy();
+            if (stockLongTermChart) stockLongTermChart.destroy();
+            document.getElementById("stockShortTermContainer").style.display = "none";
+            document.getElementById("stockLongTermContainer").style.display = "none";
+            
+            try {
+                const response = await fetch(`/api/predict-stock?ticker=${encodeURIComponent(ticker)}`);
+                const data = await response.json();
+                
+                if (data.error || data.detail) {
+                    document.getElementById("stockResult").innerHTML = `<b style="color:#ff887b;">${data.error || data.detail}</b>`;
+                    return;
+                }
+                
+                const predictionColor = data.prediction && data.prediction.includes("AVOID") ? "#ff6b6b" : "#65e261";
+                
+                document.getElementById("stockResult").innerHTML =
+                  `<b>Ticker:</b> ${data.ticker}<br>
+                   <b>Company:</b> ${data.name}<br>
+                   <b>Price:</b> $${data.price.toFixed(2)}<br>
+                   <b>Sector:</b> ${data.sector}<br>
+                   <b>Prediction:</b> <span style="color:${predictionColor};">${data.prediction}</span><br>
+                   <b>Confidence:</b> ${data.confidence}%<br>
+                   <b>Target Price:</b> $${data.target_price.toFixed(2)}<br>
+                   <b>Reasoning:</b> <span style="color:#6fc4fa;white-space:pre-line;">${data.reasoning}</span>`;
+                
+                if (data.prediction && !data.prediction.includes("AVOID")) {
+                    await showStockCharts(ticker);
+                }
+            } catch (err) {
+                document.getElementById("stockResult").innerHTML = `<b style="color:#ff887b;">Error fetching stock analysis. Please try again!</b>`;
+            }
+        }
+        
+        // Initialize
         loadSolanaPrice();
         setInterval(loadSolanaPrice, 30000);
-        
-        loadTrending();
+        loadMarketIndices();
+        setInterval(loadMarketIndices, 60000);
+        loadCryptoTrending();
+        loadStockTrending();
     </script>
 </body>
 </html>
