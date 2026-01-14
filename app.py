@@ -853,7 +853,7 @@ def get_stock_technicals(ticker: str) -> dict:
 
 
 def stock_risk_gate(fundamentals: dict, technicals: dict, stock_data: dict) -> tuple:
-    """Evaluate stock risk based on fundamentals and technicals (UPDATED: more lenient for growth stocks)"""
+    """Evaluate stock risk based on fundamentals and technicals"""
     reasons = []
     high_risk = False
     
@@ -863,7 +863,7 @@ def stock_risk_gate(fundamentals: dict, technicals: dict, stock_data: dict) -> t
     profit_margin = fundamentals.get("profit_margin", 0)
     rsi = technicals.get("rsi", 50)
     
-    # P/E ratio checks (more lenient for growth stocks)
+    # P/E ratio checks (lenient for growth stocks)
     if pe_ratio < 0:
         high_risk = True
         reasons.append("🚨 Negative earnings — company is losing money")
@@ -875,19 +875,25 @@ def stock_risk_gate(fundamentals: dict, technicals: dict, stock_data: dict) -> t
     elif pe_ratio > 50:
         reasons.append(f"⚠️ High P/E ratio ({pe_ratio:.1f}) — premium valuation")
     
-    # Revenue growth checks (more important than P/E for growth)
+    # Revenue growth checks
     if revenue_growth < -0.3:
         high_risk = True
         reasons.append(f"🚨 Revenue declining by {abs(revenue_growth)*100:.1f}% — serious trouble")
     elif revenue_growth < -0.1:
         reasons.append(f"⚠️ Revenue declining by {abs(revenue_growth)*100:.1f}% — watch carefully")
     
-    # Debt checks (more lenient)
-    if debt_to_equity > 3:
+    # Debt checks (UPDATED: context-aware)
+    # Only flag high debt as risky if company ALSO has weak fundamentals
+    if debt_to_equity > 10 and (revenue_growth < 0 or profit_margin < 0):
         high_risk = True
-        reasons.append(f"🚨 Excessive debt-to-equity ratio ({debt_to_equity:.2f}) — overleveraged")
-    elif debt_to_equity > 2:
-        reasons.append(f"⚠️ High debt-to-equity ratio ({debt_to_equity:.2f})")
+        reasons.append(f"🚨 Very high debt-to-equity ({debt_to_equity:.2f}) with weak fundamentals — dangerous")
+    elif debt_to_equity > 5 and revenue_growth < -0.1:
+        high_risk = True
+        reasons.append(f"🚨 High debt-to-equity ({debt_to_equity:.2f}) with declining revenue — risky")
+    elif debt_to_equity > 5:
+        reasons.append(f"⚠️ High debt-to-equity ({debt_to_equity:.2f}) — acceptable if growth remains strong")
+    elif debt_to_equity > 3:
+        reasons.append(f"⚠️ Elevated debt-to-equity ({debt_to_equity:.2f})")
     
     # Profitability checks (only flag if deeply negative)
     if profit_margin < -0.2:
