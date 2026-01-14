@@ -276,7 +276,7 @@ def send_discord_notification(symbol: str, token_name: str = None, price: float 
 
 
 def send_stock_discord_notification(ticker: str, company_name: str = None, price: float = None,
-                                    prediction: str = None, sector: str = None):
+                                    prediction: str = None, sector: str = None, position_type: str = None):
     """Send stock search notification to Discord"""
     try:
         color = 5814783
@@ -308,6 +308,8 @@ def send_stock_discord_notification(ticker: str, company_name: str = None, price
             embed["fields"].append({"name": "🏭 Sector", "value": sector, "inline": True})
         if prediction:
             embed["fields"].append({"name": "🎯 Prediction", "value": prediction, "inline": False})
+        if position_type:
+            embed["fields"].append({"name": "📍 Position", "value": position_type, "inline": False})
         
         payload = {"embeds": [embed]}
         requests.post(DISCORD_WEBHOOK_STOCK, json=payload, timeout=5)
@@ -768,7 +770,6 @@ async def get_solana_price():
     except Exception as e:
         print(f"Solana price error: {str(e)}")
         return {'error': str(e)}
-                
 # ===== STOCK ANALYST FUNCTIONS =====
 
 def get_stock_data(ticker: str) -> dict:
@@ -852,7 +853,7 @@ def get_stock_technicals(ticker: str) -> dict:
 
 
 def stock_risk_gate(fundamentals: dict, technicals: dict, stock_data: dict) -> tuple:
-    """Evaluate stock risk based on fundamentals and technicals"""
+    """Evaluate stock risk based on fundamentals and technicals (UPDATED: more lenient for growth stocks)"""
     reasons = []
     high_risk = False
     
@@ -862,37 +863,44 @@ def stock_risk_gate(fundamentals: dict, technicals: dict, stock_data: dict) -> t
     profit_margin = fundamentals.get("profit_margin", 0)
     rsi = technicals.get("rsi", 50)
     
-    if pe_ratio > 100:
-        high_risk = True
-        reasons.append(f"🚨 Extremely high P/E ratio ({pe_ratio:.1f}) — highly overvalued")
-    elif pe_ratio > 50:
-        reasons.append(f"⚠️ High P/E ratio ({pe_ratio:.1f}) — potentially overvalued")
-    elif pe_ratio < 0:
+    # P/E ratio checks (more lenient for growth stocks)
+    if pe_ratio < 0:
         high_risk = True
         reasons.append("🚨 Negative earnings — company is losing money")
+    elif pe_ratio > 200:
+        high_risk = True
+        reasons.append(f"🚨 Extremely high P/E ratio ({pe_ratio:.1f}) — highly overvalued")
+    elif pe_ratio > 100:
+        reasons.append(f"⚠️ Very high P/E ratio ({pe_ratio:.1f}) — growth stock or overvalued")
+    elif pe_ratio > 50:
+        reasons.append(f"⚠️ High P/E ratio ({pe_ratio:.1f}) — premium valuation")
     
-    if revenue_growth < -0.2:
+    # Revenue growth checks (more important than P/E for growth)
+    if revenue_growth < -0.3:
         high_risk = True
         reasons.append(f"🚨 Revenue declining by {abs(revenue_growth)*100:.1f}% — serious trouble")
-    elif revenue_growth < 0:
+    elif revenue_growth < -0.1:
         reasons.append(f"⚠️ Revenue declining by {abs(revenue_growth)*100:.1f}% — watch carefully")
     
-    if debt_to_equity > 2:
+    # Debt checks (more lenient)
+    if debt_to_equity > 3:
         high_risk = True
-        reasons.append(f"🚨 High debt-to-equity ratio ({debt_to_equity:.2f}) — overleveraged")
-    elif debt_to_equity > 1:
-        reasons.append(f"⚠️ Elevated debt-to-equity ratio ({debt_to_equity:.2f})")
+        reasons.append(f"🚨 Excessive debt-to-equity ratio ({debt_to_equity:.2f}) — overleveraged")
+    elif debt_to_equity > 2:
+        reasons.append(f"⚠️ High debt-to-equity ratio ({debt_to_equity:.2f})")
     
-    if profit_margin < 0:
+    # Profitability checks (only flag if deeply negative)
+    if profit_margin < -0.2:
         high_risk = True
-        reasons.append(f"🚨 Negative profit margin ({profit_margin*100:.1f}%) — burning cash")
-    elif profit_margin < 0.05:
-        reasons.append(f"⚠️ Low profit margin ({profit_margin*100:.1f}%) — tight margins")
+        reasons.append(f"🚨 Large negative profit margin ({profit_margin*100:.1f}%) — burning cash rapidly")
+    elif profit_margin < -0.05:
+        reasons.append(f"⚠️ Negative profit margin ({profit_margin*100:.1f}%) — not yet profitable")
     
-    if rsi > 80:
+    # Technical checks
+    if rsi > 85:
         reasons.append(f"⚠️ RSI extremely overbought ({rsi:.1f}) — possible pullback")
-    elif rsi < 20:
-        reasons.append(f"✅ RSI oversold ({rsi:.1f}) — possible bounce opportunity")
+    elif rsi < 15:
+        reasons.append(f"✅ RSI extremely oversold ({rsi:.1f}) — possible bounce opportunity")
     
     return high_risk, reasons
 
@@ -916,7 +924,9 @@ def predict_stock_trend(ticker: str, stock_data: dict, fundamentals: dict, techn
             'confidence': 0,
             'reasoning': reasoning,
             'target_price': price * 0.9,
-            'stop_loss': price * 0.85
+            'stop_loss': price * 0.85,
+            'position_type': '🔻 SHORT CANDIDATE',
+            'position_reasoning': 'High risk fundamentals suggest shorting opportunity or avoid entirely.'
         }
     
     score = 0
@@ -1014,6 +1024,23 @@ def predict_stock_trend(ticker: str, stock_data: dict, fundamentals: dict, techn
         confidence_level = "LOW CONFIDENCE"
         target_mult = 1.0
     
+    # Determine position type (LONG vs SHORT)
+    if score < 4:
+        position_type = "🔻 SHORT CANDIDATE"
+        position_reasoning = "Weak fundamentals and declining metrics suggest shorting opportunity."
+    elif score >= 12:
+        position_type = "🔼 LONG (BUY & HOLD)"
+        position_reasoning = "Strong fundamentals and technicals support long position with conviction."
+    elif score >= 9:
+        position_type = "🔼 LONG (MODERATE)"
+        position_reasoning = "Good fundamentals support long position; consider staged entry."
+    elif score >= 6:
+        position_type = "➡️ LONG (CAUTIOUS)"
+        position_reasoning = "Moderate fundamentals; suitable for long but with tight stops."
+    else:
+        position_type = "⏸️ NEUTRAL / WAIT"
+        position_reasoning = "Mixed signals; wait for clearer setup before entering position."
+    
     if target_mult >= 1.5:
         recommendation = "✅ RECOMMENDATION: Strong buy with 50%+ upside potential. Consider position sizing."
     elif target_mult >= 1.3:
@@ -1035,7 +1062,7 @@ def predict_stock_trend(ticker: str, stock_data: dict, fundamentals: dict, techn
 {recommendation}"""
     
     target_price = fundamentals.get("target_price", price * target_mult)
-    if target_price == 0:
+    if target_price == 0 or target_price is None:
         target_price = price * target_mult
     
     return {
@@ -1043,8 +1070,12 @@ def predict_stock_trend(ticker: str, stock_data: dict, fundamentals: dict, techn
         'confidence': int((score / 17) * 100),
         'reasoning': reasoning_output,
         'target_price': target_price,
-        'stop_loss': price * 0.92
+        'stop_loss': price * 0.92,
+        'position_type': position_type,
+        'position_reasoning': position_reasoning
     }
+
+
 @app.get("/api/predict-stock")
 async def predict_stock(ticker: str):
     """Stock prediction endpoint"""
@@ -1065,7 +1096,8 @@ async def predict_stock(ticker: str):
             company_name=stock_data['name'],
             price=stock_data['price'],
             prediction=result['prediction'],
-            sector=stock_data['sector']
+            sector=stock_data['sector'],
+            position_type=result['position_type']
         )
         
         return {
@@ -1080,6 +1112,8 @@ async def predict_stock(ticker: str):
             'reasoning': result['reasoning'],
             'target_price': result['target_price'],
             'stop_loss': result['stop_loss'],
+            'position_type': result['position_type'],
+            'position_reasoning': result['position_reasoning'],
             'fundamentals': fundamentals,
             'technicals': technicals
         }

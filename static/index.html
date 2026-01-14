@@ -343,9 +343,9 @@
             </div>
             <div id="stockTrending" class="trending-list"></div>
             
-<div id="stockLogoContainer" style="text-align: center; padding: 50px 20px; background: #262c44; border-radius: 10px; margin-top: 32px;">
-    <img src="/static/logo.png?v=1" alt="Stock Analyst Logo" style="max-width: 300px; width: 100%; height: auto;">
-</div>
+            <div id="stockLogoContainer" style="text-align: center; padding: 50px 20px; background: #262c44; border-radius: 10px; margin-top: 32px;">
+                <img src="/static/logo.png?v=1" alt="Stock Analyst Logo" style="max-width: 300px; width: 100%; height: auto;">
+            </div>
             
             <div id="stockResult" class="result"></div>
             
@@ -403,7 +403,6 @@
                 changeElement.className = 'price-change ' + (data.change_24h >= 0 ? 'price-up' : 'price-down');
             } catch (err) {
                 document.getElementById('solPriceValue').textContent = 'Error';
-                console.error('Failed to load Solana price:', err);
             }
         }
         
@@ -843,10 +842,12 @@
                    <b>Company:</b> ${data.name}<br>
                    <b>Price:</b> $${data.price.toFixed(2)}<br>
                    <b>Sector:</b> ${data.sector}<br>
+                   <b>Position Type:</b> <span style="color:#f5a623;">${data.position_type}</span><br>
                    <b>Prediction:</b> <span style="color:${predictionColor};">${data.prediction}</span><br>
                    <b>Confidence:</b> ${data.confidence}%<br>
                    <b>Target Price:</b> $${data.target_price.toFixed(2)}<br>
-                   <b>Reasoning:</b> <span style="color:#6fc4fa;white-space:pre-line;">${data.reasoning}</span>`;
+                   <b>Reasoning:</b> <span style="color:#6fc4fa;white-space:pre-line;">${data.reasoning}</span><br>
+                   <b>Position Strategy:</b> <span style="color:#8fa4d5;">${data.position_reasoning}</span>`;
                 
                 if (data.prediction && !data.prediction.includes("AVOID")) {
                     await showStockCharts(ticker);
