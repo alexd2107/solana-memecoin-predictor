@@ -22,7 +22,10 @@ OPENAI_API_KEY = "sk-proj-mz9TE9TCZnsq66V3O-C1M1JjD80Q92tsEEu4WJutZcjkqSKCf_yN8C
 SOLSCAN_API_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJjcmVhdGVkQXQiOjE3NjgxMzcwODYwMTYsImVtYWlsIjoic29jY2VyYWxleGRva29AZ21haWwuY29tIiwiYWN0aW9uIjoidG9rZW4tYXBpIiwiYXBpVmVyc2lvbiI6InYyIiwiaWF0IjoxNzY4MTM3MDg2fQ.df2kEcUDB_Ti_UKv6gaiJ8CERFlsBpiQ8XIuLEdb4XE"
 HELIUS_API_KEY = "aa25304b-753b-466b-ad17-598a69c0cb7c"
 HELIUS_URL = f"https://mainnet.helius-rpc.com/?api-key={HELIUS_API_KEY}"
-DISCORD_WEBHOOK_URL = "https://discord.com/api/webhooks/1437292750960594975/2EHZkITnwOC3PwG-h1es1hokmehqlcvUpP6QJPMsIdMjI54YZtP0NdNyEzuE-CCwbRF5"
+
+# Discord Webhooks (separate for crypto and stocks)
+DISCORD_WEBHOOK_CRYPTO = "https://discord.com/api/webhooks/1437292750960594975/2EHZkITnwOC3PwG-h1es1hokmehqlcvUpP6QJPMsIdMjI54YZtP0NdNyEzuE-CCwbRF5"
+DISCORD_WEBHOOK_STOCK = "https://discord.com/api/webhooks/1460815556130246729/7yfC-1AAJ51T9aVrtcU0cNQBxfZXLl177kNMiSVJfd6bamVHG-4u4VRJAPh8d94wlK1s"
 
 # Initialize OpenAI client
 client = OpenAI(api_key=OPENAI_API_KEY)
@@ -114,12 +117,10 @@ def get_creator_history(creator_address: str | None) -> dict | None:
         )
         
         if resp.status_code != 200:
-            print("Helius getAssetsByCreator error:", resp.status_code, resp.text)
             return None
         
         result = resp.json().get("result", {})
         items = result.get("items", []) or []
-        
         total_tokens = len(items)
         rugged_tokens = 0
         
@@ -136,7 +137,6 @@ def get_creator_history(creator_address: str | None) -> dict | None:
                     continue
                 
                 image_base64 = base64.b64encode(chart_response.content).decode('utf-8')
-                
                 vision_response = client.chat.completions.create(
                     model="gpt-4o",
                     messages=[{
@@ -165,28 +165,19 @@ Then briefly explain why in 1-2 sentences."""
                 )
                 
                 analysis = vision_response.choices[0].message.content
-                
                 if "RUG: YES" in analysis or ("pump" in analysis.lower() and "dump" in analysis.lower()):
                     rugged_tokens += 1
-                    print(f"Rug detected for {mint}: {analysis[:100]}")
-            
-            except Exception as e:
-                print(f"Chart analysis error for {mint}: {e}")
+            except Exception:
                 continue
         
         rug_rate = (rugged_tokens / min(total_tokens, 10)) if total_tokens > 0 else 0.0
-        
-        print(f"Creator {creator_address}: {rugged_tokens}/{min(total_tokens, 10)} tokens rugged ({rug_rate*100:.0f}% rug rate)")
-        
         return {
             "total_tokens": total_tokens,
             "rugged_tokens": rugged_tokens,
             "rug_rate": rug_rate,
             "last_rug_days_ago": None,
         }
-    
-    except Exception as e:
-        print("Helius creator history exception:", e)
+    except Exception:
         return None
 
 
@@ -195,7 +186,6 @@ def risk_gate(price: float, volume24h: float, liquidity: float,
               creator_history: dict | None = None):
     reasons = []
     high_risk = False
-    
     vol_liq_ratio = volume24h / liquidity if liquidity > 0 else 0
     
     if vol_liq_ratio > 5 and liquidity < 50000:
@@ -241,6 +231,8 @@ def risk_gate(price: float, volume24h: float, liquidity: float,
             reasons.append(f"⚠️ Creator has prior rug history: {rugged_tokens}/{total_tokens} tokens showed rug patterns.")
     
     return high_risk, reasons, vol_liq_ratio
+
+
 def send_discord_notification(symbol: str, token_name: str = None, price: float = None,
                               prediction: str = None, volume24h: float = None,
                               liquidity: float = None):
@@ -278,9 +270,49 @@ def send_discord_notification(symbol: str, token_name: str = None, price: float 
             embed["fields"].append({"name": "🎯 Prediction", "value": prediction, "inline": False})
         
         payload = {"embeds": [embed]}
-        requests.post(DISCORD_WEBHOOK_URL, json=payload, timeout=5)
+        requests.post(DISCORD_WEBHOOK_CRYPTO, json=payload, timeout=5)
     except Exception as e:
-        print(f"Discord notification failed: {e}")
+        print(f"Discord crypto notification failed: {e}")
+
+
+def send_stock_discord_notification(ticker: str, company_name: str = None, price: float = None,
+                                    prediction: str = None, sector: str = None):
+    """Send stock search notification to Discord"""
+    try:
+        color = 5814783
+        if prediction and "STRONG BUY" in prediction:
+            color = 5763719
+        elif prediction and "BUY" in prediction:
+            color = 5763719
+        elif prediction and "HOLD" in prediction:
+            color = 16776960
+        elif prediction and "AVOID" in prediction:
+            color = 15548997
+        
+        embed = {
+            "title": "📊 New Stock Search",
+            "color": color,
+            "fields": [
+                {"name": "📈 Ticker", "value": ticker, "inline": True},
+                {"name": "🕒 Time", "value": datetime.now().strftime("%Y-%m-%d %H:%M:%S EST"), "inline": True}
+            ],
+            "footer": {"text": "Stock Market Analyst"},
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        
+        if company_name:
+            embed["fields"].insert(1, {"name": "🏢 Company", "value": company_name, "inline": False})
+        if price:
+            embed["fields"].append({"name": "💰 Price", "value": f"${price:.2f}", "inline": True})
+        if sector:
+            embed["fields"].append({"name": "🏭 Sector", "value": sector, "inline": True})
+        if prediction:
+            embed["fields"].append({"name": "🎯 Prediction", "value": prediction, "inline": False})
+        
+        payload = {"embeds": [embed]}
+        requests.post(DISCORD_WEBHOOK_STOCK, json=payload, timeout=5)
+    except Exception as e:
+        print(f"Discord stock notification failed: {e}")
 
 
 @app.get("/")
@@ -290,7 +322,7 @@ async def read_root():
 
 @app.get("/api")
 async def get_api():
-    return {"message": "Solana Memecoin Predictor API", "status": "running"}
+    return {"message": "Market Analyst API - Crypto & Stocks", "status": "running"}
 
 
 def analyze_chart_image(chart_url: str) -> str:
@@ -300,7 +332,6 @@ def analyze_chart_image(chart_url: str) -> str:
             return "❌ Unable to fetch chart image for analysis."
         
         image_base64 = base64.b64encode(response.content).decode('utf-8')
-        
         vision_response = client.chat.completions.create(
             model="gpt-4o",
             messages=[{
@@ -326,11 +357,8 @@ Keep analysis concise and actionable."""
         
         analysis = vision_response.choices[0].message.content
         return f"📊 VISUAL CHART ANALYSIS:\n{analysis}"
-    
     except Exception as e:
         return f"❌ Chart analysis unavailable: {str(e)}"
-
-
 def predict_trend(price: float, volume24h: float, liquidity: float,
                   mint_address: str = None,
                   holder_metrics: dict | None = None,
@@ -515,6 +543,8 @@ def predict_trend(price: float, volume24h: float, liquidity: float,
         'lowest_price': price * max_drop_mult,
         'chart_analysis': chart_analysis
     }
+
+
 @app.get("/api/predict")
 async def predict(symbol: str):
     try:
@@ -538,98 +568,6 @@ async def predict(symbol: str):
                 creator_history = get_creator_history(creator_addr)
                 
                 result = predict_trend(price, volume24h, liquidity, token_address, holder_metrics, creator_history)
-                
-                send_discord_notification(token_symbol, token_name, price, result['prediction'], volume24h, liquidity)
-                
-                return {
-                    'symbol': token_symbol,
-                    'name': token_name,
-                    'price': price,
-                    'volume24h': volume24h,
-                    'liquidity': liquidity,
-                    'prediction': result['prediction'],
-                    'confidence': result['confidence'],
-                    'reasoning': result['reasoning'],
-                    'highest_price': result['highest_price'],
-                    'lowest_price': result['lowest_price'],
-                    'chart_analysis': result['chart_analysis']
-                }
-        
-        moralis_url = f"https://solana-gateway.moralis.io/token/mainnet/{symbol}/price"
-        headers = {"X-API-Key": MORALIS_API_KEY}
-        response = requests.get(moralis_url, headers=headers, timeout=10)
-        
-        if response.status_code == 200:
-            data = response.json()
-            price = float(data.get('usdPrice', 0))
-            token_name = data.get('name', 'Unknown')
-            volume24h = 100000
-            liquidity = 50000
-            
-            onchain_info = get_token_onchain_info(symbol)
-            holder_metrics = get_holder_metrics(onchain_info)
-            creator_addr = onchain_info.get("creator")
-            creator_history = get_creator_history(creator_addr)
-            
-            result = predict_trend(price, volume24h, liquidity, symbol, holder_metrics, creator_history)
-            send_discord_notification(symbol, token_name, price, result['prediction'], volume24h, liquidity)
-            
-            return {
-                'symbol': symbol,
-                'name': token_name,
-                'price': price,
-                'volume24h': volume24h,
-                'liquidity': liquidity,
-                'prediction': result['prediction'],
-                'confidence': result['confidence'],
-                'reasoning': result['reasoning'],
-                'highest_price': result['highest_price'],
-                'lowest_price': result['lowest_price'],
-                'chart_analysis': result['chart_analysis']
-            }
-        
-        bitquery_url = "https://streaming.bitquery.io/graphql"
-        headers = {"Authorization": f"Bearer {BITQUERY_API_KEY}", "Content-Type": "application/json"}
-        query = """
-        query ($token: String!) {
-            Solana {
-                DEXTradeByTokens(
-                    where: {Trade: {Currency: {MintAddress: {is: $token}}}}
-                    limit: {count: 1}
-                ) {
-                    Trade {
-                        Currency {
-                            Symbol
-                            Name
-                            MintAddress
-                        }
-                        PriceInUSD
-                    }
-                }
-            }
-        }
-        """
-        
-        bitquery_response = requests.post(bitquery_url, json={'query': query, 'variables': {'token': symbol}}, headers=headers, timeout=10)
-        
-        if bitquery_response.status_code == 200:
-            bitquery_data = bitquery_response.json()
-            trades = bitquery_data.get('data', {}).get('Solana', {}).get('DEXTradeByTokens', [])
-            
-            if trades:
-                trade = trades[0]['Trade']
-                token_symbol = trade['Currency']['Symbol']
-                token_name = trade['Currency']['Name']
-                price = float(trade['PriceInUSD'])
-                volume24h = 100000
-                liquidity = 50000
-                
-                onchain_info = get_token_onchain_info(symbol)
-                holder_metrics = get_holder_metrics(onchain_info)
-                creator_addr = onchain_info.get("creator")
-                creator_history = get_creator_history(creator_addr)
-                
-                result = predict_trend(price, volume24h, liquidity, symbol, holder_metrics, creator_history)
                 send_discord_notification(token_symbol, token_name, price, result['prediction'], volume24h, liquidity)
                 
                 return {
@@ -690,7 +628,6 @@ async def get_history(symbol: str):
         holder_metrics = get_holder_metrics(onchain_info)
         creator_addr = onchain_info.get("creator")
         creator_history = get_creator_history(creator_addr)
-        
         result = predict_trend(current_price, volume24h, liquidity, token_address, holder_metrics, creator_history)
         
         history = []
@@ -831,6 +768,7 @@ async def get_solana_price():
     except Exception as e:
         print(f"Solana price error: {str(e)}")
         return {'error': str(e)}
+                
 # ===== STOCK ANALYST FUNCTIONS =====
 
 def get_stock_data(ticker: str) -> dict:
@@ -1107,8 +1045,6 @@ def predict_stock_trend(ticker: str, stock_data: dict, fundamentals: dict, techn
         'target_price': target_price,
         'stop_loss': price * 0.92
     }
-
-
 @app.get("/api/predict-stock")
 async def predict_stock(ticker: str):
     """Stock prediction endpoint"""
@@ -1122,6 +1058,15 @@ async def predict_stock(ticker: str):
         fundamentals = get_stock_fundamentals(ticker)
         technicals = get_stock_technicals(ticker)
         result = predict_stock_trend(ticker, stock_data, fundamentals, technicals)
+        
+        # Send Discord notification for stock
+        send_stock_discord_notification(
+            ticker=ticker,
+            company_name=stock_data['name'],
+            price=stock_data['price'],
+            prediction=result['prediction'],
+            sector=stock_data['sector']
+        )
         
         return {
             'ticker': ticker,
