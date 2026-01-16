@@ -22,6 +22,7 @@ OPENAI_API_KEY = "sk-proj-mz9TE9TCZnsq66V3O-C1M1JjD80Q92tsEEu4WJutZcjkqSKCf_yN8C
 SOLSCAN_API_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJjcmVhdGVkQXQiOjE3NjgxMzcwODYwMTYsImVtYWlsIjoic29jY2VyYWxleGRva29AZ21haWwuY29tIiwiYWN0aW9uIjoidG9rZW4tYXBpIiwiYXBpVmVyc2lvbiI6InYyIiwiaWF0IjoxNzY4MTM3MDg2fQ.df2kEcUDB_Ti_UKv6gaiJ8CERFlsBpiQ8XIuLEdb4XE"
 HELIUS_API_KEY = "aa25304b-753b-466b-ad17-598a69c0cb7c"
 HELIUS_URL = f"https://mainnet.helius-rpc.com/?api-key={HELIUS_API_KEY}"
+FINNHUB_API_KEY = "d5jqh61r01qjaedr7460"
 
 # Discord Webhooks (separate for crypto and stocks)
 DISCORD_WEBHOOK_CRYPTO = "https://discord.com/api/webhooks/1437292750960594975/2EHZkITnwOC3PwG-h1es1hokmehqlcvUpP6QJPMsIdMjI54YZtP0NdNyEzuE-CCwbRF5"
@@ -231,8 +232,6 @@ def risk_gate(price: float, volume24h: float, liquidity: float,
             reasons.append(f"⚠️ Creator has prior rug history: {rugged_tokens}/{total_tokens} tokens showed rug patterns.")
     
     return high_risk, reasons, vol_liq_ratio
-
-
 def send_discord_notification(symbol: str, token_name: str = None, price: float = None,
                               prediction: str = None, volume24h: float = None,
                               liquidity: float = None):
@@ -361,6 +360,123 @@ Keep analysis concise and actionable."""
         return f"📊 VISUAL CHART ANALYSIS:\n{analysis}"
     except Exception as e:
         return f"❌ Chart analysis unavailable: {str(e)}"
+
+
+# ===== STOCK NEWS & SENTIMENT ANALYSIS =====
+
+def get_stock_news(ticker: str) -> list:
+    """Fetch recent news for a stock from Finnhub"""
+    try:
+        # Finnhub company news endpoint (last 7 days)
+        from_date = (datetime.now() - timedelta(days=7)).strftime('%Y-%m-%d')
+        to_date = datetime.now().strftime('%Y-%m-%d')
+        
+        url = f"https://finnhub.io/api/v1/company-news?symbol={ticker}&from={from_date}&to={to_date}&token={FINNHUB_API_KEY}"
+        
+        response = requests.get(url, timeout=10)
+        
+        if response.status_code != 200:
+            print(f"Finnhub news error: {response.status_code}")
+            return []
+        
+        news_data = response.json()
+        
+        # Return top 10 most recent articles
+        return news_data[:10] if news_data else []
+    
+    except Exception as e:
+        print(f"News fetch error for {ticker}: {e}")
+        return []
+
+
+def analyze_news_sentiment(ticker: str, news_articles: list) -> dict:
+    """Use GPT-4 to analyze news sentiment and extract key events"""
+    if not news_articles:
+        return {
+            "sentiment": "neutral",
+            "sentiment_score": 0,
+            "key_headlines": [],
+            "analysis": "No recent news available."
+        }
+    
+    try:
+        # Prepare headlines for GPT
+        headlines_text = "\n".join([f"{i+1}. {article.get('headline', 'N/A')}" 
+                                    for i, article in enumerate(news_articles[:10])])
+        
+        gpt_response = client.chat.completions.create(
+            model="gpt-4o",
+            messages=[{
+                "role": "user",
+                "content": f"""Analyze these recent news headlines for {ticker} and provide:
+
+{headlines_text}
+
+Provide:
+1. Overall sentiment (BULLISH / BEARISH / NEUTRAL)
+2. Sentiment score (-10 to +10, where -10 is extremely bearish, +10 is extremely bullish)
+3. Top 3 most important headlines (list them)
+4. Brief analysis (2-3 sentences) of what's happening with this company
+
+Format your response as:
+SENTIMENT: [BULLISH/BEARISH/NEUTRAL]
+SCORE: [number]
+KEY HEADLINES:
+- [headline 1]
+- [headline 2]
+- [headline 3]
+ANALYSIS: [your analysis]"""
+            }],
+            max_tokens=400
+        )
+        
+        analysis_text = gpt_response.choices[0].message.content
+        
+        # Parse GPT response
+        sentiment = "neutral"
+        if "SENTIMENT: BULLISH" in analysis_text:
+            sentiment = "bullish"
+        elif "SENTIMENT: BEARISH" in analysis_text:
+            sentiment = "bearish"
+        
+        # Extract score
+        sentiment_score = 0
+        try:
+            score_line = [line for line in analysis_text.split('\n') if 'SCORE:' in line][0]
+            sentiment_score = int(score_line.split('SCORE:')[1].strip().split()[0])
+        except:
+            pass
+        
+        # Extract key headlines
+        key_headlines = []
+        try:
+            headlines_section = analysis_text.split('KEY HEADLINES:')[1].split('ANALYSIS:')[0]
+            key_headlines = [line.strip('- ').strip() for line in headlines_section.split('\n') if line.strip().startswith('-')]
+        except:
+            key_headlines = [article.get('headline', 'N/A') for article in news_articles[:3]]
+        
+        # Extract analysis
+        analysis_summary = "Recent news analyzed."
+        try:
+            analysis_summary = analysis_text.split('ANALYSIS:')[1].strip()
+        except:
+            pass
+        
+        return {
+            "sentiment": sentiment,
+            "sentiment_score": sentiment_score,
+            "key_headlines": key_headlines[:3],
+            "analysis": analysis_summary
+        }
+    
+    except Exception as e:
+        print(f"News sentiment analysis error: {e}")
+        return {
+            "sentiment": "neutral",
+            "sentiment_score": 0,
+            "key_headlines": [],
+            "analysis": "Unable to analyze news sentiment."
+        }
 def predict_trend(price: float, volume24h: float, liquidity: float,
                   mint_address: str = None,
                   holder_metrics: dict | None = None,
@@ -547,6 +663,355 @@ def predict_trend(price: float, volume24h: float, liquidity: float,
     }
 
 
+# ===== STOCK ANALYST FUNCTIONS =====
+
+def get_stock_data(ticker: str) -> dict:
+    """Fetch stock price, volume, and market data using yfinance"""
+    try:
+        stock = yf.Ticker(ticker)
+        info = stock.info
+        hist = stock.history(period="1d")
+        
+        if hist.empty:
+            return None
+        
+        current_price = hist['Close'].iloc[-1]
+        volume = hist['Volume'].iloc[-1]
+        
+        return {
+            "price": float(current_price),
+            "volume": float(volume),
+            "market_cap": info.get("marketCap", 0),
+            "name": info.get("longName", ticker),
+            "sector": info.get("sector", "Unknown"),
+            "industry": info.get("industry", "Unknown")
+        }
+    except Exception as e:
+        print(f"Stock data error for {ticker}: {e}")
+        return None
+
+
+def get_stock_fundamentals(ticker: str) -> dict:
+    """Fetch stock fundamentals (P/E, EPS, revenue, debt)"""
+    try:
+        stock = yf.Ticker(ticker)
+        info = stock.info
+        
+        return {
+            "pe_ratio": info.get("trailingPE", 0),
+            "forward_pe": info.get("forwardPE", 0),
+            "eps": info.get("trailingEps", 0),
+            "revenue_growth": info.get("revenueGrowth", 0),
+            "profit_margin": info.get("profitMargins", 0),
+            "debt_to_equity": info.get("debtToEquity", 0),
+            "return_on_equity": info.get("returnOnEquity", 0),
+            "analyst_rating": info.get("recommendationKey", "none"),
+            "target_price": info.get("targetMeanPrice", 0)
+        }
+    except Exception as e:
+        print(f"Fundamentals error for {ticker}: {e}")
+        return {}
+
+
+def get_stock_technicals(ticker: str) -> dict:
+    """Calculate technical indicators (RSI, moving averages)"""
+    try:
+        stock = yf.Ticker(ticker)
+        hist = stock.history(period="3mo")
+        
+        if len(hist) < 14:
+            return {}
+        
+        delta = hist['Close'].diff()
+        gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
+        loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
+        rs = gain / loss
+        rsi = 100 - (100 / (1 + rs))
+        current_rsi = rsi.iloc[-1]
+        
+        ma_50 = hist['Close'].rolling(window=50).mean().iloc[-1]
+        ma_200 = hist['Close'].rolling(window=min(200, len(hist))).mean().iloc[-1]
+        current_price = hist['Close'].iloc[-1]
+        
+        return {
+            "rsi": float(current_rsi) if not np.isnan(current_rsi) else 50,
+            "ma_50": float(ma_50) if not np.isnan(ma_50) else current_price,
+            "ma_200": float(ma_200) if not np.isnan(ma_200) else current_price,
+            "price_vs_ma50": ((current_price - ma_50) / ma_50 * 100) if not np.isnan(ma_50) else 0,
+            "price_vs_ma200": ((current_price - ma_200) / ma_200 * 100) if not np.isnan(ma_200) else 0
+        }
+    except Exception as e:
+        print(f"Technicals error for {ticker}: {e}")
+        return {}
+
+
+def stock_risk_gate(fundamentals: dict, technicals: dict, stock_data: dict) -> tuple:
+    """Evaluate stock risk based on fundamentals and technicals (FIXED: context-aware debt)"""
+    reasons = []
+    high_risk = False
+    
+    pe_ratio = fundamentals.get("pe_ratio", 0)
+    revenue_growth = fundamentals.get("revenue_growth", 0)
+    debt_to_equity = fundamentals.get("debt_to_equity", 0)
+    profit_margin = fundamentals.get("profit_margin", 0)
+    rsi = technicals.get("rsi", 50)
+    
+    # P/E ratio checks (lenient for growth stocks)
+    if pe_ratio < 0:
+        high_risk = True
+        reasons.append("🚨 Negative earnings — company is losing money")
+    elif pe_ratio > 200:
+        high_risk = True
+        reasons.append(f"🚨 Extremely high P/E ratio ({pe_ratio:.1f}) — highly overvalued")
+    elif pe_ratio > 100:
+        reasons.append(f"⚠️ Very high P/E ratio ({pe_ratio:.1f}) — growth stock or overvalued")
+    elif pe_ratio > 50:
+        reasons.append(f"⚠️ High P/E ratio ({pe_ratio:.1f}) — premium valuation")
+    
+    # Revenue growth checks
+    if revenue_growth < -0.3:
+        high_risk = True
+        reasons.append(f"🚨 Revenue declining by {abs(revenue_growth)*100:.1f}% — serious trouble")
+    elif revenue_growth < -0.1:
+        reasons.append(f"⚠️ Revenue declining by {abs(revenue_growth)*100:.1f}% — watch carefully")
+    
+    # Debt checks (FIXED: context-aware, only flag if combined with weak fundamentals)
+    if debt_to_equity > 10 and (revenue_growth < 0 or profit_margin < 0):
+        high_risk = True
+        reasons.append(f"🚨 Very high debt-to-equity ({debt_to_equity:.2f}) with weak fundamentals — dangerous")
+    elif debt_to_equity > 5 and revenue_growth < -0.1:
+        high_risk = True
+        reasons.append(f"🚨 High debt-to-equity ({debt_to_equity:.2f}) with declining revenue — risky")
+    elif debt_to_equity > 5:
+        reasons.append(f"⚠️ High debt-to-equity ({debt_to_equity:.2f}) — acceptable if growth remains strong")
+    elif debt_to_equity > 3:
+        reasons.append(f"⚠️ Elevated debt-to-equity ({debt_to_equity:.2f})")
+    
+    # Profitability checks (only flag if deeply negative)
+    if profit_margin < -0.2:
+        high_risk = True
+        reasons.append(f"🚨 Large negative profit margin ({profit_margin*100:.1f}%) — burning cash rapidly")
+    elif profit_margin < -0.05:
+        reasons.append(f"⚠️ Negative profit margin ({profit_margin*100:.1f}%) — not yet profitable")
+    
+    # Technical checks
+    if rsi > 85:
+        reasons.append(f"⚠️ RSI extremely overbought ({rsi:.1f}) — possible pullback")
+    elif rsi < 15:
+        reasons.append(f"✅ RSI extremely oversold ({rsi:.1f}) — possible bounce opportunity")
+    
+    return high_risk, reasons
+
+
+def predict_stock_trend(ticker: str, stock_data: dict, fundamentals: dict, technicals: dict, news_sentiment: dict = None) -> dict:
+    """Predict stock trend based on fundamentals, technicals, and news"""
+    price = stock_data["price"]
+    high_risk, reasons = stock_risk_gate(fundamentals, technicals, stock_data)
+    
+    if high_risk:
+        reasoning = f"""🔴 INVESTMENT SCORE: 0/17
+
+🚨 PREDICTION: AVOID THIS STOCK
+⚠️ CONFIDENCE: HIGH RISK
+
+{chr(10).join(reasons)}
+
+🛑 RECOMMENDATION: Do NOT invest in this stock."""
+        return {
+            'prediction': '🚨 AVOID - HIGH RISK STOCK',
+            'confidence': 0,
+            'reasoning': reasoning,
+            'target_price': price * 0.9,
+            'stop_loss': price * 0.85,
+            'position_type': '🔻 SHORT CANDIDATE',
+            'position_reasoning': 'High risk fundamentals suggest shorting opportunity or avoid entirely.'
+        }
+    
+    score = 0
+    reasoning_parts = []
+    
+    # 1. Valuation
+    pe_ratio = fundamentals.get("pe_ratio", 0)
+    if 0 < pe_ratio < 15:
+        score += 4
+        reasoning_parts.append(f"✅ Low P/E ratio ({pe_ratio:.1f}) — undervalued (+4)")
+    elif 15 <= pe_ratio < 25:
+        score += 3
+        reasoning_parts.append(f"✅ Reasonable P/E ratio ({pe_ratio:.1f}) — fair value (+3)")
+    elif 25 <= pe_ratio < 35:
+        score += 1
+        reasoning_parts.append(f"⚡ Moderate P/E ratio ({pe_ratio:.1f}) (+1)")
+    else:
+        reasoning_parts.append(f"⚠️ P/E ratio ({pe_ratio:.1f}) — expensive (0)")
+    
+    # 2. Growth
+    revenue_growth = fundamentals.get("revenue_growth", 0) * 100
+    if revenue_growth > 30:
+        score += 4
+        reasoning_parts.append(f"✅ Strong revenue growth ({revenue_growth:.1f}%) — excellent momentum (+4)")
+    elif revenue_growth > 15:
+        score += 3
+        reasoning_parts.append(f"✅ Good revenue growth ({revenue_growth:.1f}%) (+3)")
+    elif revenue_growth > 5:
+        score += 2
+        reasoning_parts.append(f"⚡ Positive revenue growth ({revenue_growth:.1f}%) (+2)")
+    else:
+        reasoning_parts.append(f"⚠️ Low/negative revenue growth ({revenue_growth:.1f}%) (0)")
+    
+    # 3. Profitability
+    profit_margin = fundamentals.get("profit_margin", 0) * 100
+    if profit_margin > 20:
+        score += 3
+        reasoning_parts.append(f"✅ High profit margin ({profit_margin:.1f}%) — very profitable (+3)")
+    elif profit_margin > 10:
+        score += 2
+        reasoning_parts.append(f"✅ Good profit margin ({profit_margin:.1f}%) (+2)")
+    elif profit_margin > 5:
+        score += 1
+        reasoning_parts.append(f"⚡ Acceptable profit margin ({profit_margin:.1f}%) (+1)")
+    else:
+        reasoning_parts.append(f"⚠️ Low profit margin ({profit_margin:.1f}%) (0)")
+    
+    # 4. Technicals
+    rsi = technicals.get("rsi", 50)
+    if 30 <= rsi <= 50:
+        score += 3
+        reasoning_parts.append(f"✅ RSI in buy zone ({rsi:.1f}) — good entry point (+3)")
+    elif 50 < rsi <= 60:
+        score += 2
+        reasoning_parts.append(f"⚡ RSI neutral ({rsi:.1f}) (+2)")
+    elif 60 < rsi <= 70:
+        score += 1
+        reasoning_parts.append(f"⚡ RSI elevated ({rsi:.1f}) — caution (+1)")
+    else:
+        reasoning_parts.append(f"⚠️ RSI extreme ({rsi:.1f}) — overbought/oversold (0)")
+    
+    # 5. Debt
+    debt_to_equity = fundamentals.get("debt_to_equity", 0)
+    if debt_to_equity < 0.5:
+        score += 2
+        reasoning_parts.append(f"✅ Low debt-to-equity ({debt_to_equity:.2f}) — strong balance sheet (+2)")
+    elif debt_to_equity < 1:
+        score += 1
+        reasoning_parts.append(f"⚡ Moderate debt-to-equity ({debt_to_equity:.2f}) (+1)")
+    else:
+        reasoning_parts.append(f"⚠️ High debt-to-equity ({debt_to_equity:.2f}) (0)")
+    
+    # 6. Analyst sentiment
+    rating = fundamentals.get("analyst_rating", "none")
+    if rating in ["strong_buy", "buy"]:
+        score += 1
+        reasoning_parts.append(f"✅ Analyst rating: {rating.replace('_', ' ').upper()} (+1)")
+    else:
+        reasoning_parts.append(f"⚠️ Analyst rating: {rating.replace('_', ' ').upper()} (0)")
+    
+    # 7. NEWS SENTIMENT (NEW: adds up to +3 or -3 points)
+    if news_sentiment:
+        sentiment = news_sentiment.get("sentiment", "neutral")
+        sentiment_score = news_sentiment.get("sentiment_score", 0)
+        
+        if sentiment == "bullish" and sentiment_score >= 5:
+            score += 3
+            reasoning_parts.append(f"✅ News sentiment: BULLISH (score: {sentiment_score}/10) — positive catalysts (+3)")
+        elif sentiment == "bullish":
+            score += 2
+            reasoning_parts.append(f"⚡ News sentiment: Mildly bullish (score: {sentiment_score}/10) (+2)")
+        elif sentiment == "bearish" and sentiment_score <= -5:
+            score -= 3
+            reasoning_parts.append(f"❌ News sentiment: BEARISH (score: {sentiment_score}/10) — negative catalysts (-3)")
+        elif sentiment == "bearish":
+            score -= 1
+            reasoning_parts.append(f"⚠️ News sentiment: Mildly bearish (score: {sentiment_score}/10) (-1)")
+        else:
+            reasoning_parts.append(f"⚠️ News sentiment: Neutral (0)")
+    
+    score = max(0, min(20, score))  # Now max is 20 with news
+    
+    # Determine prediction tier (adjusted for 0-20 scale)
+    if score >= 17:
+        prediction_text = "🔥 STRONG BUY"
+        confidence_level = "VERY HIGH CONFIDENCE"
+        target_mult = 1.5
+    elif score >= 14:
+        prediction_text = "🚀 BUY"
+        confidence_level = "HIGH CONFIDENCE"
+        target_mult = 1.3
+    elif score >= 10:
+        prediction_text = "⚡ MODERATE BUY"
+        confidence_level = "MODERATE CONFIDENCE"
+        target_mult = 1.15
+    elif score >= 6:
+        prediction_text = "📊 HOLD"
+        confidence_level = "LOW CONFIDENCE"
+        target_mult = 1.05
+    else:
+        prediction_text = "⚠️ WEAK / HOLD"
+        confidence_level = "LOW CONFIDENCE"
+        target_mult = 1.0
+    
+    # Determine position type (LONG vs SHORT) with news context
+    if score < 4:
+        position_type = "🔻 SHORT CANDIDATE"
+        position_reasoning = "Weak fundamentals and negative news suggest shorting opportunity."
+    elif score >= 14:
+        position_type = "🔼 LONG (BUY & HOLD)"
+        position_reasoning = "Strong fundamentals, technicals, and positive news support long position with conviction."
+    elif score >= 10:
+        position_type = "🔼 LONG (MODERATE)"
+        position_reasoning = "Good fundamentals support long position; consider staged entry."
+    elif score >= 6:
+        position_type = "➡️ LONG (CAUTIOUS)"
+        position_reasoning = "Moderate fundamentals; suitable for long but with tight stops."
+    else:
+        position_type = "⏸️ NEUTRAL / WAIT"
+        position_reasoning = "Mixed signals; wait for clearer setup before entering position."
+    
+    if target_mult >= 1.5:
+        recommendation = "✅ RECOMMENDATION: Strong buy with 50%+ upside potential. Consider position sizing."
+    elif target_mult >= 1.3:
+        recommendation = "✅ RECOMMENDATION: Good buy opportunity with 30%+ upside."
+    elif target_mult >= 1.15:
+        recommendation = "⚡ RECOMMENDATION: Moderate buy for diversification."
+    elif target_mult >= 1.05:
+        recommendation = "⚠️ RECOMMENDATION: Hold current position or wait for better entry."
+    else:
+        recommendation = "❌ RECOMMENDATION: Weak fundamentals, consider alternatives."
+    
+    # Build reasoning with news
+    news_section = ""
+    if news_sentiment and news_sentiment.get("key_headlines"):
+        headlines_text = "\n".join([f"• {h}" for h in news_sentiment.get("key_headlines", [])[:3]])
+        news_analysis = news_sentiment.get("analysis", "")
+        news_section = f"""
+
+📰 RECENT NEWS ANALYSIS:
+{news_analysis}
+
+Key Headlines:
+{headlines_text}"""
+    
+    reasoning_output = f"""📊 INVESTMENT SCORE: {score}/20
+
+🎯 PREDICTION: {prediction_text}
+💪 CONFIDENCE: {confidence_level}
+
+{chr(10).join(reasoning_parts)}
+
+{recommendation}{news_section}"""
+    
+    target_price = fundamentals.get("target_price", price * target_mult)
+    if target_price == 0 or target_price is None:
+        target_price = price * target_mult
+    
+    return {
+        'prediction': prediction_text,
+        'confidence': int((score / 20) * 100),
+        'reasoning': reasoning_output,
+        'target_price': target_price,
+        'stop_loss': price * 0.92,
+        'position_type': position_type,
+        'position_reasoning': position_reasoning
+    }
 @app.get("/api/predict")
 async def predict(symbol: str):
     try:
@@ -770,321 +1235,11 @@ async def get_solana_price():
     except Exception as e:
         print(f"Solana price error: {str(e)}")
         return {'error': str(e)}
-# ===== STOCK ANALYST FUNCTIONS =====
-
-def get_stock_data(ticker: str) -> dict:
-    """Fetch stock price, volume, and market data using yfinance"""
-    try:
-        stock = yf.Ticker(ticker)
-        info = stock.info
-        hist = stock.history(period="1d")
-        
-        if hist.empty:
-            return None
-        
-        current_price = hist['Close'].iloc[-1]
-        volume = hist['Volume'].iloc[-1]
-        
-        return {
-            "price": float(current_price),
-            "volume": float(volume),
-            "market_cap": info.get("marketCap", 0),
-            "name": info.get("longName", ticker),
-            "sector": info.get("sector", "Unknown"),
-            "industry": info.get("industry", "Unknown")
-        }
-    except Exception as e:
-        print(f"Stock data error for {ticker}: {e}")
-        return None
-
-
-def get_stock_fundamentals(ticker: str) -> dict:
-    """Fetch stock fundamentals (P/E, EPS, revenue, debt)"""
-    try:
-        stock = yf.Ticker(ticker)
-        info = stock.info
-        
-        return {
-            "pe_ratio": info.get("trailingPE", 0),
-            "forward_pe": info.get("forwardPE", 0),
-            "eps": info.get("trailingEps", 0),
-            "revenue_growth": info.get("revenueGrowth", 0),
-            "profit_margin": info.get("profitMargins", 0),
-            "debt_to_equity": info.get("debtToEquity", 0),
-            "return_on_equity": info.get("returnOnEquity", 0),
-            "analyst_rating": info.get("recommendationKey", "none"),
-            "target_price": info.get("targetMeanPrice", 0)
-        }
-    except Exception as e:
-        print(f"Fundamentals error for {ticker}: {e}")
-        return {}
-
-
-def get_stock_technicals(ticker: str) -> dict:
-    """Calculate technical indicators (RSI, moving averages)"""
-    try:
-        stock = yf.Ticker(ticker)
-        hist = stock.history(period="3mo")
-        
-        if len(hist) < 14:
-            return {}
-        
-        delta = hist['Close'].diff()
-        gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
-        loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
-        rs = gain / loss
-        rsi = 100 - (100 / (1 + rs))
-        current_rsi = rsi.iloc[-1]
-        
-        ma_50 = hist['Close'].rolling(window=50).mean().iloc[-1]
-        ma_200 = hist['Close'].rolling(window=min(200, len(hist))).mean().iloc[-1]
-        current_price = hist['Close'].iloc[-1]
-        
-        return {
-            "rsi": float(current_rsi) if not np.isnan(current_rsi) else 50,
-            "ma_50": float(ma_50) if not np.isnan(ma_50) else current_price,
-            "ma_200": float(ma_200) if not np.isnan(ma_200) else current_price,
-            "price_vs_ma50": ((current_price - ma_50) / ma_50 * 100) if not np.isnan(ma_50) else 0,
-            "price_vs_ma200": ((current_price - ma_200) / ma_200 * 100) if not np.isnan(ma_200) else 0
-        }
-    except Exception as e:
-        print(f"Technicals error for {ticker}: {e}")
-        return {}
-
-
-def stock_risk_gate(fundamentals: dict, technicals: dict, stock_data: dict) -> tuple:
-    """Evaluate stock risk based on fundamentals and technicals"""
-    reasons = []
-    high_risk = False
-    
-    pe_ratio = fundamentals.get("pe_ratio", 0)
-    revenue_growth = fundamentals.get("revenue_growth", 0)
-    debt_to_equity = fundamentals.get("debt_to_equity", 0)
-    profit_margin = fundamentals.get("profit_margin", 0)
-    rsi = technicals.get("rsi", 50)
-    
-    # P/E ratio checks (lenient for growth stocks)
-    if pe_ratio < 0:
-        high_risk = True
-        reasons.append("🚨 Negative earnings — company is losing money")
-    elif pe_ratio > 200:
-        high_risk = True
-        reasons.append(f"🚨 Extremely high P/E ratio ({pe_ratio:.1f}) — highly overvalued")
-    elif pe_ratio > 100:
-        reasons.append(f"⚠️ Very high P/E ratio ({pe_ratio:.1f}) — growth stock or overvalued")
-    elif pe_ratio > 50:
-        reasons.append(f"⚠️ High P/E ratio ({pe_ratio:.1f}) — premium valuation")
-    
-    # Revenue growth checks
-    if revenue_growth < -0.3:
-        high_risk = True
-        reasons.append(f"🚨 Revenue declining by {abs(revenue_growth)*100:.1f}% — serious trouble")
-    elif revenue_growth < -0.1:
-        reasons.append(f"⚠️ Revenue declining by {abs(revenue_growth)*100:.1f}% — watch carefully")
-    
-    # Debt checks (UPDATED: context-aware)
-    # Only flag high debt as risky if company ALSO has weak fundamentals
-    if debt_to_equity > 10 and (revenue_growth < 0 or profit_margin < 0):
-        high_risk = True
-        reasons.append(f"🚨 Very high debt-to-equity ({debt_to_equity:.2f}) with weak fundamentals — dangerous")
-    elif debt_to_equity > 5 and revenue_growth < -0.1:
-        high_risk = True
-        reasons.append(f"🚨 High debt-to-equity ({debt_to_equity:.2f}) with declining revenue — risky")
-    elif debt_to_equity > 5:
-        reasons.append(f"⚠️ High debt-to-equity ({debt_to_equity:.2f}) — acceptable if growth remains strong")
-    elif debt_to_equity > 3:
-        reasons.append(f"⚠️ Elevated debt-to-equity ({debt_to_equity:.2f})")
-    
-    # Profitability checks (only flag if deeply negative)
-    if profit_margin < -0.2:
-        high_risk = True
-        reasons.append(f"🚨 Large negative profit margin ({profit_margin*100:.1f}%) — burning cash rapidly")
-    elif profit_margin < -0.05:
-        reasons.append(f"⚠️ Negative profit margin ({profit_margin*100:.1f}%) — not yet profitable")
-    
-    # Technical checks
-    if rsi > 85:
-        reasons.append(f"⚠️ RSI extremely overbought ({rsi:.1f}) — possible pullback")
-    elif rsi < 15:
-        reasons.append(f"✅ RSI extremely oversold ({rsi:.1f}) — possible bounce opportunity")
-    
-    return high_risk, reasons
-
-
-def predict_stock_trend(ticker: str, stock_data: dict, fundamentals: dict, technicals: dict) -> dict:
-    """Predict stock trend based on fundamentals and technicals"""
-    price = stock_data["price"]
-    high_risk, reasons = stock_risk_gate(fundamentals, technicals, stock_data)
-    
-    if high_risk:
-        reasoning = f"""🔴 INVESTMENT SCORE: 0/17
-
-🚨 PREDICTION: AVOID THIS STOCK
-⚠️ CONFIDENCE: HIGH RISK
-
-{chr(10).join(reasons)}
-
-🛑 RECOMMENDATION: Do NOT invest in this stock."""
-        return {
-            'prediction': '🚨 AVOID - HIGH RISK STOCK',
-            'confidence': 0,
-            'reasoning': reasoning,
-            'target_price': price * 0.9,
-            'stop_loss': price * 0.85,
-            'position_type': '🔻 SHORT CANDIDATE',
-            'position_reasoning': 'High risk fundamentals suggest shorting opportunity or avoid entirely.'
-        }
-    
-    score = 0
-    reasoning_parts = []
-    
-    pe_ratio = fundamentals.get("pe_ratio", 0)
-    if 0 < pe_ratio < 15:
-        score += 4
-        reasoning_parts.append(f"✅ Low P/E ratio ({pe_ratio:.1f}) — undervalued (+4)")
-    elif 15 <= pe_ratio < 25:
-        score += 3
-        reasoning_parts.append(f"✅ Reasonable P/E ratio ({pe_ratio:.1f}) — fair value (+3)")
-    elif 25 <= pe_ratio < 35:
-        score += 1
-        reasoning_parts.append(f"⚡ Moderate P/E ratio ({pe_ratio:.1f}) (+1)")
-    else:
-        reasoning_parts.append(f"⚠️ P/E ratio ({pe_ratio:.1f}) — expensive (0)")
-    
-    revenue_growth = fundamentals.get("revenue_growth", 0) * 100
-    if revenue_growth > 30:
-        score += 4
-        reasoning_parts.append(f"✅ Strong revenue growth ({revenue_growth:.1f}%) — excellent momentum (+4)")
-    elif revenue_growth > 15:
-        score += 3
-        reasoning_parts.append(f"✅ Good revenue growth ({revenue_growth:.1f}%) (+3)")
-    elif revenue_growth > 5:
-        score += 2
-        reasoning_parts.append(f"⚡ Positive revenue growth ({revenue_growth:.1f}%) (+2)")
-    else:
-        reasoning_parts.append(f"⚠️ Low/negative revenue growth ({revenue_growth:.1f}%) (0)")
-    
-    profit_margin = fundamentals.get("profit_margin", 0) * 100
-    if profit_margin > 20:
-        score += 3
-        reasoning_parts.append(f"✅ High profit margin ({profit_margin:.1f}%) — very profitable (+3)")
-    elif profit_margin > 10:
-        score += 2
-        reasoning_parts.append(f"✅ Good profit margin ({profit_margin:.1f}%) (+2)")
-    elif profit_margin > 5:
-        score += 1
-        reasoning_parts.append(f"⚡ Acceptable profit margin ({profit_margin:.1f}%) (+1)")
-    else:
-        reasoning_parts.append(f"⚠️ Low profit margin ({profit_margin:.1f}%) (0)")
-    
-    rsi = technicals.get("rsi", 50)
-    if 30 <= rsi <= 50:
-        score += 3
-        reasoning_parts.append(f"✅ RSI in buy zone ({rsi:.1f}) — good entry point (+3)")
-    elif 50 < rsi <= 60:
-        score += 2
-        reasoning_parts.append(f"⚡ RSI neutral ({rsi:.1f}) (+2)")
-    elif 60 < rsi <= 70:
-        score += 1
-        reasoning_parts.append(f"⚡ RSI elevated ({rsi:.1f}) — caution (+1)")
-    else:
-        reasoning_parts.append(f"⚠️ RSI extreme ({rsi:.1f}) — overbought/oversold (0)")
-    
-    debt_to_equity = fundamentals.get("debt_to_equity", 0)
-    if debt_to_equity < 0.5:
-        score += 2
-        reasoning_parts.append(f"✅ Low debt-to-equity ({debt_to_equity:.2f}) — strong balance sheet (+2)")
-    elif debt_to_equity < 1:
-        score += 1
-        reasoning_parts.append(f"⚡ Moderate debt-to-equity ({debt_to_equity:.2f}) (+1)")
-    else:
-        reasoning_parts.append(f"⚠️ High debt-to-equity ({debt_to_equity:.2f}) (0)")
-    
-    rating = fundamentals.get("analyst_rating", "none")
-    if rating in ["strong_buy", "buy"]:
-        score += 1
-        reasoning_parts.append(f"✅ Analyst rating: {rating.replace('_', ' ').upper()} (+1)")
-    else:
-        reasoning_parts.append(f"⚠️ Analyst rating: {rating.replace('_', ' ').upper()} (0)")
-    
-    score = max(0, min(17, score))
-    
-    if score >= 15:
-        prediction_text = "🔥 STRONG BUY"
-        confidence_level = "VERY HIGH CONFIDENCE"
-        target_mult = 1.5
-    elif score >= 12:
-        prediction_text = "🚀 BUY"
-        confidence_level = "HIGH CONFIDENCE"
-        target_mult = 1.3
-    elif score >= 9:
-        prediction_text = "⚡ MODERATE BUY"
-        confidence_level = "MODERATE CONFIDENCE"
-        target_mult = 1.15
-    elif score >= 6:
-        prediction_text = "📊 HOLD"
-        confidence_level = "LOW CONFIDENCE"
-        target_mult = 1.05
-    else:
-        prediction_text = "⚠️ WEAK / HOLD"
-        confidence_level = "LOW CONFIDENCE"
-        target_mult = 1.0
-    
-    # Determine position type (LONG vs SHORT)
-    if score < 4:
-        position_type = "🔻 SHORT CANDIDATE"
-        position_reasoning = "Weak fundamentals and declining metrics suggest shorting opportunity."
-    elif score >= 12:
-        position_type = "🔼 LONG (BUY & HOLD)"
-        position_reasoning = "Strong fundamentals and technicals support long position with conviction."
-    elif score >= 9:
-        position_type = "🔼 LONG (MODERATE)"
-        position_reasoning = "Good fundamentals support long position; consider staged entry."
-    elif score >= 6:
-        position_type = "➡️ LONG (CAUTIOUS)"
-        position_reasoning = "Moderate fundamentals; suitable for long but with tight stops."
-    else:
-        position_type = "⏸️ NEUTRAL / WAIT"
-        position_reasoning = "Mixed signals; wait for clearer setup before entering position."
-    
-    if target_mult >= 1.5:
-        recommendation = "✅ RECOMMENDATION: Strong buy with 50%+ upside potential. Consider position sizing."
-    elif target_mult >= 1.3:
-        recommendation = "✅ RECOMMENDATION: Good buy opportunity with 30%+ upside."
-    elif target_mult >= 1.15:
-        recommendation = "⚡ RECOMMENDATION: Moderate buy for diversification."
-    elif target_mult >= 1.05:
-        recommendation = "⚠️ RECOMMENDATION: Hold current position or wait for better entry."
-    else:
-        recommendation = "❌ RECOMMENDATION: Weak fundamentals, consider alternatives."
-    
-    reasoning_output = f"""📊 INVESTMENT SCORE: {score}/17
-
-🎯 PREDICTION: {prediction_text}
-💪 CONFIDENCE: {confidence_level}
-
-{chr(10).join(reasoning_parts)}
-
-{recommendation}"""
-    
-    target_price = fundamentals.get("target_price", price * target_mult)
-    if target_price == 0 or target_price is None:
-        target_price = price * target_mult
-    
-    return {
-        'prediction': prediction_text,
-        'confidence': int((score / 17) * 100),
-        'reasoning': reasoning_output,
-        'target_price': target_price,
-        'stop_loss': price * 0.92,
-        'position_type': position_type,
-        'position_reasoning': position_reasoning
-    }
 
 
 @app.get("/api/predict-stock")
 async def predict_stock(ticker: str):
-    """Stock prediction endpoint"""
+    """Stock prediction endpoint with news analysis"""
     try:
         ticker = ticker.upper().strip()
         
@@ -1094,9 +1249,14 @@ async def predict_stock(ticker: str):
         
         fundamentals = get_stock_fundamentals(ticker)
         technicals = get_stock_technicals(ticker)
-        result = predict_stock_trend(ticker, stock_data, fundamentals, technicals)
         
-        # Send Discord notification for stock
+        # Fetch and analyze news
+        news_articles = get_stock_news(ticker)
+        news_sentiment = analyze_news_sentiment(ticker, news_articles)
+        
+        result = predict_stock_trend(ticker, stock_data, fundamentals, technicals, news_sentiment)
+        
+        # Send Discord notification
         send_stock_discord_notification(
             ticker=ticker,
             company_name=stock_data['name'],
@@ -1121,7 +1281,8 @@ async def predict_stock(ticker: str):
             'position_type': result['position_type'],
             'position_reasoning': result['position_reasoning'],
             'fundamentals': fundamentals,
-            'technicals': technicals
+            'technicals': technicals,
+            'news_sentiment': news_sentiment
         }
     
     except HTTPException as he:
@@ -1146,7 +1307,9 @@ async def get_stock_history(ticker: str):
         stock_data = get_stock_data(ticker)
         fundamentals = get_stock_fundamentals(ticker)
         technicals = get_stock_technicals(ticker)
-        result = predict_stock_trend(ticker, stock_data, fundamentals, technicals)
+        news_articles = get_stock_news(ticker)
+        news_sentiment = analyze_news_sentiment(ticker, news_articles)
+        result = predict_stock_trend(ticker, stock_data, fundamentals, technicals, news_sentiment)
         
         history = []
         for index, row in hist.tail(60).iterrows():
