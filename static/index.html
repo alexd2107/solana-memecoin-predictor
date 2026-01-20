@@ -6,385 +6,79 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-        body {
-            font-family: 'Segoe UI', Arial, sans-serif;
-            background: linear-gradient(135deg, #181c29 0%, #2f3857 100%);
-            color: #f5f5f5;
-            margin: 0;
-            padding: 0;
-        }
-        .modal-overlay {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0, 0, 0, 0.9);
-            z-index: 9999;
-            justify-content: center;
-            align-items: center;
-        }
-        .modal-overlay.active {
-            display: flex;
-        }
-        .modal-content {
-            background: #1a1f2e;
-            border-radius: 16px;
-            padding: 40px;
-            max-width: 550px;
-            width: 90%;
-            text-align: center;
-            box-shadow: 0 8px 32px rgba(0,0,0,0.5);
-            border: 2px solid #9945ff;
-        }
-        .modal-content h2 {
-            color: #14f195;
-            margin-top: 0;
-            margin-bottom: 25px;
-            font-size: 2em;
-        }
-        .modal-content p {
-            color: #f5f5f5;
-            line-height: 1.8;
-            margin-bottom: 18px;
-            font-size: 1.05em;
-        }
-        .modal-content .warning {
-            color: #ff6b6b;
-            font-weight: bold;
-            font-size: 1.3em;
-            margin: 20px 0;
-        }
-        .modal-button {
-            background: linear-gradient(90deg, #14f195 0%, #9945ff 100%);
-            color: #fff;
-            border: none;
-            border-radius: 12px;
-            padding: 16px 40px;
-            font-size: 1.2em;
-            cursor: pointer;
-            font-weight: bold;
-            margin-top: 25px;
-            transition: transform 0.2s;
-        }
-        .modal-button:hover {
-            transform: scale(1.05);
-        }
-        .modal-input {
-            width: 100%;
-            padding: 12px;
-            margin: 10px 0;
-            border: none;
-            border-radius: 8px;
-            background: #2f3857;
-            color: #fff;
-            font-size: 1em;
-        }
-        .modal-input::placeholder {
-            color: #8fa4d5;
-        }
-        .auth-toggle {
-            color: #14f195;
-            cursor: pointer;
-            text-decoration: underline;
-            margin-top: 15px;
-            display: inline-block;
-        }
-        .degen-text {
-            color: #9945ff;
-            font-weight: bold;
-            font-style: italic;
-        }
-        .price-bar {
-            background: linear-gradient(90deg, #14f195 0%, #9945ff 100%);
-            padding: 12px 20px;
-            text-align: center;
-            font-weight: bold;
-            font-size: 1em;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
-            position: sticky;
-            top: 0;
-            z-index: 1000;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            flex-wrap: wrap;
-            gap: 15px;
-        }
-        .price-bar-left {
-            display: flex;
-            gap: 20px;
-            flex-wrap: wrap;
-        }
-        .price-bar-right {
-            display: flex;
-            gap: 10px;
-            align-items: center;
-        }
-        .user-profile {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            background: rgba(255,255,255,0.1);
-            padding: 8px 15px;
-            border-radius: 8px;
-            cursor: pointer;
-            position: relative;
-        }
-        .user-dropdown {
-            display: none;
-            position: absolute;
-            top: 50px;
-            right: 0;
-            background: #1a1f2e;
-            border-radius: 8px;
-            padding: 15px;
-            min-width: 200px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.5);
-            z-index: 10000;
-        }
-        .user-dropdown.active {
-            display: block;
-        }
-        .user-dropdown-item {
-            padding: 10px;
-            cursor: pointer;
-            border-radius: 4px;
-            margin: 5px 0;
-        }
-        .user-dropdown-item:hover {
-            background: #2f3857;
-        }
-        .wallet-btn {
-            background: linear-gradient(90deg, #9945ff 0%, #14f195 100%);
-            color: #fff;
-            border: none;
-            border-radius: 8px;
-            padding: 8px 16px;
-            font-size: 0.95em;
-            cursor: pointer;
-            font-weight: bold;
-        }
-        .auth-btn {
-            background: #5792fe;
-            color: #fff;
-            border: none;
-            border-radius: 8px;
-            padding: 8px 16px;
-            font-size: 0.95em;
-            cursor: pointer;
-            font-weight: bold;
-        }
-        .price-bar span {
-            margin: 0 8px;
-        }
-        .price-value {
-            color: #fff;
-            font-size: 1.1em;
-        }
-        .price-change {
-            font-size: 0.85em;
-            padding: 3px 7px;
-            border-radius: 4px;
-            background: rgba(255,255,255,0.2);
-        }
-        .price-up {
-            color: #14f195;
-        }
-        .price-down {
-            color: #ff6b6b;
-        }
-        .two-column-layout {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 30px;
-            max-width: 1400px;
-            margin: 40px auto;
-            padding: 0 20px;
-        }
-        .column {
-            background: rgba(24, 28, 41, 0.92);
-            border-radius: 16px;
-            box-shadow: 0 2px 24px 0 #0002;
-            padding: 36px 30px 30px 30px;
-        }
-        .column h1 {
-            margin-top: 0;
-            font-size: 2em;
-            text-align: center;
-            letter-spacing: 0.02em;
-        }
-        .search-bar {
-            display: flex;
-            gap: 10px;
-            margin-bottom: 24px;
-        }
-        input[type="text"], input[type="email"], input[type="password"] {
-            flex: 1;
-            padding: 10px;
-            font-size: 1em;
-            border: none;
-            border-radius: 8px;
-            background: #2f3857;
-            color: #fff;
-        }
-        input::placeholder {
-            color: #8fa4d5;
-        }
-        button {
-            background: #5792fe;
-            color: #fff;
-            border: none;
-            border-radius: 8px;
-            padding: 10px 18px;
-            font-size: 1em;
-            cursor: pointer;
-            font-weight: bold;
-        }
-        button:hover {
-            background: #2f76e2;
-        }
-        .result {
-            margin-top: 32px;
-            font-size: 1.07em;
-            background: #262c44;
-            border-radius: 10px;
-            padding: 22px 16px;
-            min-height: 60px;
-            word-break: break-word;
-            white-space: pre-line;
-            display: none;
-        }
-        .history-section {
-            margin-top: 40px;
-            padding: 20px;
-            background: #1a1f2e;
-            border-radius: 10px;
-            display: none;
-        }
-        .history-section h3 {
-            color: #14f195;
-            margin-top: 0;
-        }
-        .history-item {
-            background: #262c44;
-            padding: 15px;
-            margin: 10px 0;
-            border-radius: 8px;
-            cursor: pointer;
-        }
-        .history-item:hover {
-            background: #2f3857;
-        }
-        .trending-list {
-            margin: 24px 0 10px 0;
-            padding: 0;
-        }
-        .trend-row {
-            background: #21273a;
-            margin-bottom: 12px;
-            border-radius: 10px;
-            display: flex;
-            align-items: center;
-            padding: 15px 20px;
-            cursor: pointer;
-            transition: background 0.2s;
-        }
-        .trend-row:hover {
-            background: #2e3651;
-        }
-        .trend-symbol {
-            font-weight: bold;
-            font-size: 1.11em;
-            color: #91fe77;
-            margin-right: 15px;
-        }
-        .trend-price {
-            color: #6fc4fa;
-            font-size: 1em;
-            font-weight: 500;
-        }
-        .chart-container {
-            width: 100%;
-            margin: 24px auto 0 auto;
-            display: none;
-            background: #21273a;
-            border-radius: 10px;
-            padding: 20px;
-            box-shadow: 0 1px 4px #0002;
-        }
-        .chart-title {
-            font-size: 1.1em;
-            font-weight: bold;
-            color: #91fe77;
-            margin-bottom: 12px;
-            text-align: center;
-        }
-        canvas {
-            width: 100% !important;
-            height: auto !important;
-        }
-        .spinner {
-            display: inline-block;
-            width: 34px;
-            height: 34px;
-        }
-        .spinner:after {
-            content: " ";
-            display: block;
-            width: 24px;
-            height: 24px;
-            margin: 4px auto;
-            border-radius: 50%;
-            border: 4px solid #5792fe;
-            border-color: #5792fe #5792fe #5792fe transparent;
-            animation: spin 1s linear infinite;
-        }
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-        @media (max-width: 1200px) {
-            .two-column-layout {
-                grid-template-columns: 1fr;
-            }
-        }
-        @media (max-width: 700px) {
-            .price-bar {
-                font-size: 0.85em;
-                padding: 10px;
-            }
-            .two-column-layout {
-                margin: 20px 10px;
-                padding: 0 10px;
-            }
-            .column {
-                padding: 22px 15px;
-            }
-        }
+        body { font-family: 'Segoe UI', Arial, sans-serif; background: linear-gradient(135deg, #181c29 0%, #2f3857 100%); color: #f5f5f5; margin: 0; padding: 0; }
+        .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.9); z-index: 9999; justify-content: center; align-items: center; }
+        .modal-overlay.active { display: flex; }
+        .modal-content { background: #1a1f2e; border-radius: 16px; padding: 40px; max-width: 550px; width: 90%; text-align: center; box-shadow: 0 8px 32px rgba(0,0,0,0.5); border: 2px solid #9945ff; }
+        .modal-content h2 { color: #14f195; margin-top: 0; margin-bottom: 25px; font-size: 2em; }
+        .modal-content p { color: #f5f5f5; line-height: 1.8; margin-bottom: 18px; font-size: 1.05em; }
+        .modal-content .warning { color: #ff6b6b; font-weight: bold; font-size: 1.3em; margin: 20px 0; }
+        .modal-button { background: linear-gradient(90deg, #14f195 0%, #9945ff 100%); color: #fff; border: none; border-radius: 12px; padding: 16px 40px; font-size: 1.2em; cursor: pointer; font-weight: bold; margin-top: 25px; transition: transform 0.2s; }
+        .modal-button:hover { transform: scale(1.05); }
+        .modal-input { width: 100%; padding: 12px; margin: 10px 0; border: none; border-radius: 8px; background: #2f3857; color: #fff; font-size: 1em; box-sizing: border-box; }
+        .modal-input::placeholder { color: #8fa4d5; }
+        .auth-toggle { color: #14f195; cursor: pointer; text-decoration: underline; margin-top: 15px; display: inline-block; }
+        .degen-text { color: #9945ff; font-weight: bold; font-style: italic; }
+        .price-bar { background: linear-gradient(90deg, #14f195 0%, #9945ff 100%); padding: 12px 20px; font-weight: bold; font-size: 1em; box-shadow: 0 2px 8px rgba(0,0,0,0.3); position: sticky; top: 0; z-index: 1000; display: flex; justify-content: space-between; align-items: center; }
+        .price-bar-center { display: flex; gap: 30px; justify-content: center; flex: 1; }
+        .price-bar-right { display: flex; gap: 10px; align-items: center; }
+        .user-profile { display: flex; align-items: center; gap: 10px; background: rgba(255,255,255,0.1); padding: 8px 15px; border-radius: 8px; cursor: pointer; position: relative; }
+        .user-dropdown { display: none; position: absolute; top: 50px; right: 0; background: #1a1f2e; border-radius: 8px; padding: 15px; min-width: 220px; box-shadow: 0 4px 12px rgba(0,0,0,0.5); z-index: 10000; }
+        .user-dropdown.active { display: block; }
+        .user-dropdown-item { padding: 10px; cursor: pointer; border-radius: 4px; margin: 5px 0; }
+        .user-dropdown-item:hover { background: #2f3857; }
+        .dev-only { border-top: 1px solid #9945ff; margin-top: 10px; padding-top: 10px; }
+        .wallet-btn { background: linear-gradient(90deg, #9945ff 0%, #14f195 100%); color: #fff; border: none; border-radius: 8px; padding: 8px 16px; font-size: 0.95em; cursor: pointer; font-weight: bold; }
+        .auth-btn { background: #5792fe; color: #fff; border: none; border-radius: 8px; padding: 8px 16px; font-size: 0.95em; cursor: pointer; font-weight: bold; }
+        .price-value { color: #fff; font-size: 1.1em; }
+        .price-change { font-size: 0.85em; padding: 3px 7px; border-radius: 4px; background: rgba(255,255,255,0.2); }
+        .price-up { color: #14f195; }
+        .price-down { color: #ff6b6b; }
+        .two-column-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; max-width: 1400px; margin: 40px auto; padding: 0 20px; }
+        .column { background: rgba(24, 28, 41, 0.92); border-radius: 16px; box-shadow: 0 2px 24px 0 #0002; padding: 36px 30px; }
+        .column h1 { margin-top: 0; font-size: 2em; text-align: center; }
+        .search-bar { display: flex; gap: 10px; margin-bottom: 24px; }
+        input[type="text"], input[type="email"], input[type="password"] { flex: 1; padding: 10px; font-size: 1em; border: none; border-radius: 8px; background: #2f3857; color: #fff; }
+        input::placeholder { color: #8fa4d5; }
+        button { background: #5792fe; color: #fff; border: none; border-radius: 8px; padding: 10px 18px; font-size: 1em; cursor: pointer; font-weight: bold; }
+        button:hover { background: #2f76e2; }
+        .result { margin-top: 32px; font-size: 1.07em; background: #262c44; border-radius: 10px; padding: 22px 16px; min-height: 60px; word-break: break-word; white-space: pre-line; display: none; }
+        .history-section { margin-top: 40px; padding: 20px; background: #1a1f2e; border-radius: 10px; display: none; }
+        .history-section h3 { color: #14f195; margin-top: 0; }
+        .history-item { background: #262c44; padding: 15px; margin: 10px 0; border-radius: 8px; cursor: pointer; }
+        .history-item:hover { background: #2f3857; }
+        .trending-list { margin: 24px 0 10px 0; }
+        .trend-row { background: #21273a; margin-bottom: 12px; border-radius: 10px; display: flex; align-items: center; padding: 15px 20px; cursor: pointer; transition: background 0.2s; }
+        .trend-row:hover { background: #2e3651; }
+        .trend-symbol { font-weight: bold; font-size: 1.11em; color: #91fe77; margin-right: 15px; }
+        .trend-price { color: #6fc4fa; font-size: 1em; font-weight: 500; }
+        .chart-container { width: 100%; margin: 24px auto 0; display: none; background: #21273a; border-radius: 10px; padding: 20px; }
+        .chart-title { font-size: 1.1em; font-weight: bold; color: #91fe77; margin-bottom: 12px; text-align: center; }
+        canvas { width: 100% !important; height: auto !important; }
+        .spinner { display: inline-block; width: 34px; height: 34px; }
+        .spinner:after { content: " "; display: block; width: 24px; height: 24px; margin: 4px auto; border-radius: 50%; border: 4px solid #5792fe; border-color: #5792fe #5792fe #5792fe transparent; animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        @media (max-width: 1200px) { .two-column-layout { grid-template-columns: 1fr; } }
     </style>
 </head>
 <body>
-    <!-- Disclaimer Modal -->
-    <div class="modal-overlay active" id="disclaimerModal">
+    <!-- Disclaimer Modal (shown after login) -->
+    <div class="modal-overlay" id="disclaimerModal">
         <div class="modal-content">
             <h2>⚠️ Disclaimer</h2>
             <p class="warning">This is Not Financial Advice</p>
-            <p>Whatever Predictions are given are subject to change and are not verified.</p>
-            <p><strong>Do Your Own Research</strong></p>
             <p>All predictions are based solely on AI Analysis and may not be accurate.</p>
-            <p>Proceed with caution and enjoy the analysis fellow <span class="degen-text">Degen's</span> 🚀</p>
+            <p>Proceed with caution fellow <span class="degen-text">Degen's</span> 🚀</p>
             <button class="modal-button" onclick="acceptDisclaimer()">I Understand - Let's Go!</button>
         </div>
     </div>
 
-    <!-- Login/Signup Modal -->
-    <div class="modal-overlay" id="authModal">
+    <!-- Login/Signup Modal (MANDATORY - shown first) -->
+    <div class="modal-overlay active" id="authModal">
         <div class="modal-content">
-            <h2 id="authTitle">Login to Your Account</h2>
+            <h2 id="authTitle">Login to Continue</h2>
+            <p style="font-size: 0.95em; color: #8fa4d5;">You must log in to use the Market Analyst</p>
             
-            <!-- Login Form -->
             <div id="loginForm">
                 <input type="email" id="loginEmail" class="modal-input" placeholder="Email">
                 <input type="password" id="loginPassword" class="modal-input" placeholder="Password">
@@ -392,7 +86,6 @@
                 <p class="auth-toggle" onclick="switchToSignup()">Don't have an account? Sign up</p>
             </div>
             
-            <!-- Signup Form -->
             <div id="signupForm" style="display: none;">
                 <input type="text" id="signupUsername" class="modal-input" placeholder="Username">
                 <input type="email" id="signupEmail" class="modal-input" placeholder="Email">
@@ -400,46 +93,47 @@
                 <button class="modal-button" onclick="handleSignup()">Sign Up</button>
                 <p class="auth-toggle" onclick="switchToLogin()">Already have an account? Login</p>
             </div>
-            
-            <p class="auth-toggle" onclick="closeAuthModal()" style="margin-top: 20px;">Continue without account</p>
         </div>
     </div>
 
-    <!-- Price Bar with Auth -->
-    <div class="price-bar">
-        <div class="price-bar-left">
-            <div>
-                <span>☀️ SOL</span>
-                <span class="price-value" id="solPriceValue">Loading...</span>
-                <span class="price-change" id="solPriceChange">--</span>
-            </div>
-            <div>
-                <span>📊 S&P 500</span>
-                <span class="price-value" id="spPrice">--</span>
-                <span class="price-change" id="spChange">--</span>
-            </div>
+    <!-- Stats Modal -->
+    <div class="modal-overlay" id="statsModal">
+        <div class="modal-content" style="max-width: 700px;">
+            <h2>📊 Your Stats</h2>
+            <div id="statsContent" style="text-align: left;"><div class="spinner"></div><span>Loading...</span></div>
+            <button class="modal-button" onclick="closeStatsModal()">Close</button>
         </div>
-        
+    </div>
+
+    <!-- Price Bar (CENTERED) -->
+    <div class="price-bar">
+        <div style="flex: 1;"></div>
+        <div class="price-bar-center">
+            <div><span>☀️ SOL</span> <span class="price-value" id="solPriceValue">Loading...</span> <span class="price-change" id="solPriceChange">--</span></div>
+            <div><span>📊 S&P 500</span> <span class="price-value" id="spPrice">--</span> <span class="price-change" id="spChange">--</span></div>
+        </div>
         <div class="price-bar-right">
-            <!-- User Not Logged In -->
             <div id="authButtons" style="display: flex; gap: 10px;">
                 <button class="auth-btn" onclick="showAuthModal()">Login</button>
                 <button class="wallet-btn" onclick="connectWallet()">Connect Wallet</button>
             </div>
-            
-            <!-- User Logged In -->
             <div id="userProfile" class="user-profile" style="display: none;" onclick="toggleUserDropdown()">
                 <span id="userDisplayName">User</span>
                 <span id="walletStatus">🔗</span>
-                
+                <span id="devBadge" style="display: none; color: #14f195; margin-left: 5px; font-size: 0.9em;">👑</span>
                 <div id="userDropdown" class="user-dropdown">
                     <div style="padding: 10px; border-bottom: 1px solid #2f3857; margin-bottom: 10px;">
                         <div style="font-size: 0.9em; color: #8fa4d5;">Logged in as</div>
                         <div style="font-weight: bold;" id="userEmailDisplay">email@example.com</div>
+                        <div id="devModeIndicator" style="display: none; color: #14f195; font-size: 0.85em; margin-top: 5px;">👑 Developer Mode</div>
                     </div>
                     <div class="user-dropdown-item" onclick="showHistory()">📜 My History</div>
                     <div class="user-dropdown-item" onclick="showStats()">📊 My Stats</div>
                     <div class="user-dropdown-item" onclick="connectWallet()">🔗 Connect Wallet</div>
+                    <div id="devOnlySection" class="dev-only" style="display: none;">
+                        <div class="user-dropdown-item" onclick="viewAllUsers()" style="color: #14f195;">👥 View All Users</div>
+                        <div class="user-dropdown-item" onclick="viewAllAnalyses()" style="color: #14f195;">📊 All Analyses</div>
+                    </div>
                     <div class="user-dropdown-item" onclick="logout()" style="color: #ff6b6b;">🚪 Logout</div>
                 </div>
             </div>
@@ -471,7 +165,6 @@
                 anvas id="cryptoLongTermChart"></canvas>
             </div>
             
-            <!-- Crypto History Section -->
             <div id="cryptoHistorySection" class="history-section">
                 <h3>📜 Your Crypto Analysis History</h3>
                 <div id="cryptoHistoryList"></div>
@@ -503,23 +196,10 @@
                 anvas id="stockLongTermChart"></canvas>
             </div>
             
-            <!-- Stock History Section -->
             <div id="stockHistorySection" class="history-section">
                 <h3>📜 Your Stock Analysis History</h3>
                 <div id="stockHistoryList"></div>
             </div>
-        </div>
-    </div>
-
-    <!-- Stats Dashboard Modal -->
-    <div class="modal-overlay" id="statsModal">
-        <div class="modal-content" style="max-width: 700px;">
-            <h2>📊 Your Stats</h2>
-            <div id="statsContent" style="text-align: left; color: #f5f5f5;">
-                <div class="spinner"></div>
-                <span>Loading stats...</span>
-            </div>
-            <button class="modal-button" onclick="closeStatsModal()" style="margin-top: 30px;">Close</button>
         </div>
     </div>
 
@@ -539,7 +219,7 @@
         let stockShortTermChart = null;
         let stockLongTermChart = null;
         
-        // ===== AUTH FUNCTIONS =====
+        // AUTH FUNCTIONS
         
         function acceptDisclaimer() {
             document.getElementById('disclaimerModal').classList.remove('active');
@@ -563,7 +243,7 @@
         function switchToLogin() {
             document.getElementById('signupForm').style.display = 'none';
             document.getElementById('loginForm').style.display = 'block';
-            document.getElementById('authTitle').textContent = 'Login to Your Account';
+            document.getElementById('authTitle').textContent = 'Login to Continue';
         }
         
         async function handleLogin() {
@@ -575,6 +255,9 @@
                 return;
             }
             
+            // Check for developer password
+            const isDev = (email === 'dev@memecoinmetrics.com' && password === 'DevAccess2026!');
+            
             try {
                 const response = await fetch(`/api/auth/login?email=${encodeURIComponent(email)}&password=${encodeURIComponent(password)}`, {
                     method: 'POST'
@@ -582,15 +265,28 @@
                 
                 const data = await response.json();
                 
-                if (response.ok) {
-                    authToken = data.access_token;
-                    currentUser = data.user;
+                if (response.ok || isDev) {
+                    if (isDev) {
+                        authToken = 'dev-mode-token';
+                        currentUser = { email: email, username: 'Developer', wallet_address: null, is_dev: true };
+                        alert('🔓 Developer Mode Activated');
+                    } else {
+                        authToken = data.access_token;
+                        currentUser = data.user;
+                        currentUser.is_dev = false;
+                    }
+                    
                     localStorage.setItem('authToken', authToken);
                     localStorage.setItem('currentUser', JSON.stringify(currentUser));
                     
                     updateAuthUI();
                     closeAuthModal();
-                    alert('Login successful!');
+                    
+                    // Show disclaimer after login
+                    const accepted = localStorage.getItem('disclaimerAccepted');
+                    if (accepted !== 'true') {
+                        document.getElementById('disclaimerModal').classList.add('active');
+                    }
                 } else {
                     alert(data.detail || 'Login failed');
                 }
@@ -619,11 +315,15 @@
                 if (response.ok) {
                     authToken = data.access_token;
                     currentUser = data.user;
+                    currentUser.is_dev = false;
                     localStorage.setItem('authToken', authToken);
                     localStorage.setItem('currentUser', JSON.stringify(currentUser));
                     
                     updateAuthUI();
                     closeAuthModal();
+                    
+                    // Show disclaimer after signup
+                    document.getElementById('disclaimerModal').classList.add('active');
                     alert('Account created successfully!');
                 } else {
                     alert(data.detail || 'Signup failed');
@@ -638,8 +338,9 @@
             currentUser = null;
             localStorage.removeItem('authToken');
             localStorage.removeItem('currentUser');
-            updateAuthUI();
+            localStorage.removeItem('disclaimerAccepted');
             alert('Logged out successfully');
+            location.reload();
         }
         
         function updateAuthUI() {
@@ -649,6 +350,17 @@
                 document.getElementById('userDisplayName').textContent = currentUser.username;
                 document.getElementById('userEmailDisplay').textContent = currentUser.email;
                 document.getElementById('walletStatus').textContent = currentUser.wallet_address ? '🔗✅' : '🔗';
+                
+                // Show dev badge and options if developer
+                if (currentUser.is_dev) {
+                    document.getElementById('devBadge').style.display = 'inline';
+                    document.getElementById('devModeIndicator').style.display = 'block';
+                    document.getElementById('devOnlySection').style.display = 'block';
+                } else {
+                    document.getElementById('devBadge').style.display = 'none';
+                    document.getElementById('devModeIndicator').style.display = 'none';
+                    document.getElementById('devOnlySection').style.display = 'none';
+                }
             } else {
                 document.getElementById('authButtons').style.display = 'flex';
                 document.getElementById('userProfile').style.display = 'none';
@@ -660,7 +372,6 @@
             dropdown.classList.toggle('active');
         }
         
-        // Close dropdown when clicking outside
         document.addEventListener('click', function(event) {
             const profile = document.getElementById('userProfile');
             const dropdown = document.getElementById('userDropdown');
@@ -669,11 +380,10 @@
             }
         });
         
-        // ===== WALLET CONNECTION =====
+        // WALLET CONNECTION
         
         async function connectWallet() {
             try {
-                // Check if Phantom wallet is installed
                 const { solana } = window;
                 
                 if (!solana || !solana.isPhantom) {
@@ -682,20 +392,16 @@
                     return;
                 }
                 
-                // Connect to Phantom
                 const response = await solana.connect();
                 const walletAddress = response.publicKey.toString();
                 
                 console.log('Connected to wallet:', walletAddress);
                 
-                // If user is logged in, link wallet to account
-                if (authToken && currentUser) {
+                if (authToken && currentUser && !currentUser.is_dev) {
                     try {
                         const linkResponse = await fetch(`/api/auth/connect-wallet?wallet_address=${encodeURIComponent(walletAddress)}`, {
                             method: 'POST',
-                            headers: {
-                                'Authorization': `Bearer ${authToken}`
-                            }
+                            headers: { 'Authorization': `Bearer ${authToken}` }
                         });
                         
                         const linkData = await linkResponse.json();
@@ -706,50 +412,63 @@
                             updateAuthUI();
                             alert('Wallet connected to your account!');
                         } else {
-                            alert(linkData.detail || 'Failed to link wallet to account');
+                            alert(linkData.detail || 'Failed to link wallet');
                         }
                     } catch (err) {
-                        alert('Wallet connected, but failed to link to account. Please try again.');
+                        alert('Wallet connected, but failed to link to account.');
                     }
+                } else if (currentUser && currentUser.is_dev) {
+                    alert(`Developer wallet connected: ${walletAddress.slice(0, 4)}...${walletAddress.slice(-4)}`);
                 } else {
-                    // Not logged in, just show wallet connected
-                    alert(`Wallet connected: ${walletAddress.slice(0, 4)}...${walletAddress.slice(-4)}\n\nLogin to save this wallet to your account!`);
+                    alert(`Wallet connected: ${walletAddress.slice(0, 4)}...${walletAddress.slice(-4)}`);
                 }
             } catch (err) {
                 console.error('Wallet connection error:', err);
-                if (err.message.includes('User rejected')) {
+                if (err.message && err.message.includes('User rejected')) {
                     alert('Wallet connection cancelled');
                 } else {
-                    alert('Failed to connect wallet. Make sure Phantom is installed.');
+                    alert('Failed to connect wallet.');
                 }
             }
         }
         
-        // ===== HISTORY & STATS =====
+        // DEVELOPER-ONLY FUNCTIONS
+        
+        async function viewAllUsers() {
+            if (!currentUser || !currentUser.is_dev) {
+                alert('Developer access only');
+                return;
+            }
+            alert('Developer Feature: View all users (API endpoint needed)');
+        }
+        
+        async function viewAllAnalyses() {
+            if (!currentUser || !currentUser.is_dev) {
+                alert('Developer access only');
+                return;
+            }
+            alert('Developer Feature: View all analyses (API endpoint needed)');
+        }
+        
+        // HISTORY & STATS
         
         async function showHistory() {
             if (!authToken) {
                 alert('Please login to view your history');
-                showAuthModal();
                 return;
             }
             
             try {
                 const response = await fetch('/api/user/history?limit=50', {
-                    headers: {
-                        'Authorization': `Bearer ${authToken}`
-                    }
+                    headers: { 'Authorization': `Bearer ${authToken}` }
                 });
                 
                 const data = await response.json();
                 
                 if (response.ok) {
-                    // Show crypto history
                     const cryptoAnalyses = data.analyses.filter(a => a.type === 'crypto');
-                    let cryptoHTML = '';
-                    
                     if (cryptoAnalyses.length > 0) {
-                        cryptoHTML = cryptoAnalyses.map(a => `
+                        const cryptoHTML = cryptoAnalyses.map(a => `
                             <div class="history-item" onclick="reanalyze('${a.symbol}', 'crypto')">
                                 <strong>${a.symbol}</strong> - ${a.name}<br>
                                 <span style="font-size: 0.9em; color: #8fa4d5;">
@@ -762,12 +481,9 @@
                         document.getElementById('cryptoHistorySection').style.display = 'block';
                     }
                     
-                    // Show stock history
                     const stockAnalyses = data.analyses.filter(a => a.type === 'stock');
-                    let stockHTML = '';
-                    
                     if (stockAnalyses.length > 0) {
-                        stockHTML = stockAnalyses.map(a => `
+                        const stockHTML = stockAnalyses.map(a => `
                             <div class="history-item" onclick="reanalyze('${a.symbol}', 'stock')">
                                 <strong>${a.symbol}</strong> - ${a.name}<br>
                                 <span style="font-size: 0.9em; color: #8fa4d5;">
@@ -804,8 +520,7 @@
         
         async function showStats() {
             if (!authToken) {
-                alert('Please login to view your stats');
-                showAuthModal();
+                alert('Please login to view stats');
                 return;
             }
             
@@ -813,9 +528,7 @@
                 document.getElementById('statsModal').classList.add('active');
                 
                 const response = await fetch('/api/user/stats', {
-                    headers: {
-                        'Authorization': `Bearer ${authToken}`
-                    }
+                    headers: { 'Authorization': `Bearer ${authToken}` }
                 });
                 
                 const data = await response.json();
@@ -846,16 +559,9 @@
             document.getElementById('statsModal').classList.remove('active');
         }
         
-        // ===== INITIALIZATION =====
+        // INITIALIZATION (MANDATORY LOGIN)
         
         window.addEventListener('load', function() {
-            // Check disclaimer
-            const accepted = localStorage.getItem('disclaimerAccepted');
-            if (accepted === 'true') {
-                document.getElementById('disclaimerModal').classList.remove('active');
-            }
-            
-            // Check if user was previously logged in
             const savedToken = localStorage.getItem('authToken');
             const savedUser = localStorage.getItem('currentUser');
             
@@ -863,10 +569,19 @@
                 authToken = savedToken;
                 currentUser = JSON.parse(savedUser);
                 updateAuthUI();
+                
+                const accepted = localStorage.getItem('disclaimerAccepted');
+                if (accepted !== 'true') {
+                    document.getElementById('disclaimerModal').classList.add('active');
+                } else {
+                    document.getElementById('disclaimerModal').classList.remove('active');
+                }
+                document.getElementById('authModal').classList.remove('active');
+            } else {
+                // Force login - auth modal already active from HTML
+                document.getElementById('disclaimerModal').classList.remove('active');
             }
         });
-        
-        // ===== HELPER FUNCTIONS =====
         
         function getAuthHeaders() {
             if (authToken) {
@@ -874,16 +589,15 @@
             }
             return {};
         }
+        
         async function loadSolanaPrice() {
             try {
                 const response = await fetch('/api/solana-price');
                 const data = await response.json();
-                
                 if (data.error) {
-                    document.getElementById('solPriceValue').textContent = 'Price unavailable';
+                    document.getElementById('solPriceValue').textContent = 'Unavailable';
                     return;
                 }
-                
                 document.getElementById('solPriceValue').textContent = `$${data.price.toFixed(2)}`;
                 const changeElement = document.getElementById('solPriceChange');
                 const changeText = data.change_24h >= 0 ? `+${data.change_24h.toFixed(2)}%` : `${data.change_24h.toFixed(2)}%`;
@@ -898,7 +612,6 @@
             try {
                 const response = await fetch('/api/market-indices');
                 const data = await response.json();
-                
                 if (data.indices && data.indices.length > 0) {
                     const sp = data.indices.find(idx => idx.name === 'S&P 500');
                     if (sp) {
@@ -968,20 +681,10 @@
                 maintainAspectRatio: true,
                 aspectRatio: isShortTerm ? 2 : 2.2,
                 plugins: { 
-                    legend: { 
-                        display: true,
-                        position: 'top',
-                        labels: { color: '#f5f5f5', font: { size: 12, weight: '500' }, padding: 15, usePointStyle: true }
-                    },
+                    legend: { display: true, position: 'top', labels: { color: '#f5f5f5', font: { size: 12, weight: '500' }, padding: 15, usePointStyle: true } },
                     tooltip: {
-                        mode: 'index',
-                        intersect: false,
-                        backgroundColor: 'rgba(24,28,41,0.95)',
-                        titleColor: '#f5f5f5',
-                        bodyColor: '#8fa4d5',
-                        borderColor: '#5792fe',
-                        borderWidth: 1,
-                        padding: 12,
+                        mode: 'index', intersect: false, backgroundColor: 'rgba(24,28,41,0.95)', titleColor: '#f5f5f5',
+                        bodyColor: '#8fa4d5', borderColor: '#5792fe', borderWidth: 1, padding: 12,
                         callbacks: {
                             label: function(context) {
                                 let label = context.dataset.label || '';
@@ -995,24 +698,12 @@
                     }
                 },
                 scales: { 
-                    x: {
-                        display: true,
-                        ticks: { color: '#8fa4d5', maxRotation: 45, minRotation: 45, font: { size: 10 }, maxTicksLimit: isShortTerm ? 10 : 12 },
-                        grid: { color: 'rgba(143,164,213,0.08)', drawBorder: false }
-                    }, 
-                    y: {
-                        display: true,
-                        ticks: { 
-                            color: '#8fa4d5',
-                            font: { size: 11 },
-                            callback: function(value) {
-                                if (value >= 1) return '$' + value.toFixed(4);
-                                else if (value >= 0.0001) return '$' + value.toFixed(6);
-                                else return '$' + value.toFixed(8);
-                            }
-                        },
-                        grid: { color: 'rgba(143,164,213,0.12)', drawBorder: false }
-                    }
+                    x: { display: true, ticks: { color: '#8fa4d5', maxRotation: 45, minRotation: 45, font: { size: 10 }, maxTicksLimit: isShortTerm ? 10 : 12 }, grid: { color: 'rgba(143,164,213,0.08)', drawBorder: false } }, 
+                    y: { display: true, ticks: { color: '#8fa4d5', font: { size: 11 }, callback: function(value) {
+                        if (value >= 1) return '$' + value.toFixed(4);
+                        else if (value >= 0.0001) return '$' + value.toFixed(6);
+                        else return '$' + value.toFixed(8);
+                    }}, grid: { color: 'rgba(143,164,213,0.12)', drawBorder: false } }
                 }
             };
         }
@@ -1030,6 +721,7 @@
         }
         
         // CRYPTO ANALYSIS
+        
         async function showCryptoCharts(symbol) {
             const shortTermEl = document.getElementById("cryptoShortTermChart");
             const longTermEl = document.getElementById("cryptoLongTermChart");
@@ -1049,7 +741,6 @@
                 const allPrices = data.history.map(p => p.price);
                 const shortLabels = allLabels.slice(-20).map(d => d.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}));
                 const shortPrices = allPrices.slice(-20);
-                
                 const futurePrices = data.future.map(p => p.price);
                 const futureLabels = data.future.map(p => new Date(p.time).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}));
                 const lastPrice = shortPrices[shortPrices.length - 1];
@@ -1060,26 +751,8 @@
                     data: {
                         labels: shortLabels.concat(futureLabels),
                         datasets: [
-                            {
-                                label: "Historical Price",
-                                data: shortPrices.concat(Array(futurePrices.length).fill(null)),
-                                borderColor: "#5792fe",
-                                backgroundColor: "rgba(87,146,254,0.08)",
-                                pointRadius: 0,
-                                borderWidth: 2.5,
-                                tension: 0.35,
-                                fill: true
-                            },
-                            {
-                                label: "Predicted Price",
-                                data: Array(shortPrices.length - 1).fill(null).concat([lastPrice]).concat(futurePrices),
-                                borderColor: "#65e261",
-                                borderDash: [6, 4],
-                                pointRadius: 0,
-                                borderWidth: 2.5,
-                                fill: false,
-                                tension: 0.35
-                            }
+                            { label: "Historical Price", data: shortPrices.concat(Array(futurePrices.length).fill(null)), borderColor: "#5792fe", backgroundColor: "rgba(87,146,254,0.08)", pointRadius: 0, borderWidth: 2.5, tension: 0.35, fill: true },
+                            { label: "Predicted Price", data: Array(shortPrices.length - 1).fill(null).concat([lastPrice]).concat(futurePrices), borderColor: "#65e261", borderDash: [6, 4], pointRadius: 0, borderWidth: 2.5, fill: false, tension: 0.35 }
                         ]
                     },
                     options: getChartOptions(true)
@@ -1096,26 +769,8 @@
                     data: {
                         labels: longLabels.concat(futureLabels),
                         datasets: [
-                            {
-                                label: "Historical Price",
-                                data: longPrices.concat(Array(futurePrices.length).fill(null)),
-                                borderColor: "#5792fe",
-                                backgroundColor: "rgba(87,146,254,0.08)",
-                                pointRadius: 0,
-                                borderWidth: 2.5,
-                                tension: 0.4,
-                                fill: true
-                            },
-                            {
-                                label: "Predicted Price",
-                                data: Array(longPrices.length - 1).fill(null).concat([lastPrice]).concat(futurePrices),
-                                borderColor: "#65e261",
-                                borderDash: [6, 4],
-                                pointRadius: 0,
-                                borderWidth: 2.5,
-                                fill: false,
-                                tension: 0.4
-                            }
+                            { label: "Historical Price", data: longPrices.concat(Array(futurePrices.length).fill(null)), borderColor: "#5792fe", backgroundColor: "rgba(87,146,254,0.08)", pointRadius: 0, borderWidth: 2.5, tension: 0.4, fill: true },
+                            { label: "Predicted Price", data: Array(longPrices.length - 1).fill(null).concat([lastPrice]).concat(futurePrices), borderColor: "#65e261", borderDash: [6, 4], pointRadius: 0, borderWidth: 2.5, fill: false, tension: 0.4 }
                         ]
                     },
                     options: getChartOptions(false)
@@ -1137,11 +792,7 @@
                 return;
             }
             
-            document.getElementById("cryptoResult").innerHTML = `
-                <div style='display:flex;align-items:center;gap:14px;'>
-                  <div class="spinner"></div>
-                  <span>Loading analysis for '<b>${symbol}</b>' ...</span>
-                </div>`;
+            document.getElementById("cryptoResult").innerHTML = `<div style='display:flex;align-items:center;gap:14px;'><div class="spinner"></div><span>Loading analysis for '<b>${symbol}</b>' ...</span></div>`;
             document.getElementById("cryptoLogoContainer").style.display = "none";
             document.getElementById("cryptoResult").style.display = "block";
             document.getElementById("cryptoHistorySection").style.display = "none";
@@ -1152,9 +803,7 @@
             document.getElementById("cryptoLongTermContainer").style.display = "none";
             
             try {
-                const response = await fetch(`/api/predict?symbol=${encodeURIComponent(symbol)}`, {
-                    headers: getAuthHeaders()
-                });
+                const response = await fetch(`/api/predict?symbol=${encodeURIComponent(symbol)}`, { headers: getAuthHeaders() });
                 const data = await response.json();
                 
                 if (data.error) {
@@ -1181,6 +830,7 @@
         }
         
         // STOCK ANALYSIS
+        
         async function showStockCharts(ticker) {
             const shortTermEl = document.getElementById("stockShortTermChart");
             const longTermEl = document.getElementById("stockLongTermChart");
@@ -1199,7 +849,6 @@
                 
                 const historyLabels = data.history.map(p => new Date(p.time).toLocaleDateString([], {month:'short', day:'numeric'}));
                 const historyPrices = data.history.map(p => p.price);
-                
                 const futurePrices = data.future.map(p => p.price);
                 const futureLabels = data.future.map(p => new Date(p.time).toLocaleDateString([], {month:'short', day:'numeric'}));
                 const lastPrice = historyPrices[historyPrices.length - 1];
@@ -1210,26 +859,8 @@
                     data: {
                         labels: historyLabels.slice(-20).concat(futureLabels),
                         datasets: [
-                            {
-                                label: "Historical Price",
-                                data: historyPrices.slice(-20).concat(Array(futurePrices.length).fill(null)),
-                                borderColor: "#5792fe",
-                                backgroundColor: "rgba(87,146,254,0.08)",
-                                pointRadius: 0,
-                                borderWidth: 2.5,
-                                tension: 0.35,
-                                fill: true
-                            },
-                            {
-                                label: "Predicted Price",
-                                data: Array(Math.min(20, historyPrices.length) - 1).fill(null).concat([lastPrice]).concat(futurePrices),
-                                borderColor: "#65e261",
-                                borderDash: [6, 4],
-                                pointRadius: 0,
-                                borderWidth: 2.5,
-                                fill: false,
-                                tension: 0.35
-                            }
+                            { label: "Historical Price", data: historyPrices.slice(-20).concat(Array(futurePrices.length).fill(null)), borderColor: "#5792fe", backgroundColor: "rgba(87,146,254,0.08)", pointRadius: 0, borderWidth: 2.5, tension: 0.35, fill: true },
+                            { label: "Predicted Price", data: Array(Math.min(20, historyPrices.length) - 1).fill(null).concat([lastPrice]).concat(futurePrices), borderColor: "#65e261", borderDash: [6, 4], pointRadius: 0, borderWidth: 2.5, fill: false, tension: 0.35 }
                         ]
                     },
                     options: getChartOptions(true)
@@ -1242,26 +873,8 @@
                     data: {
                         labels: historyLabels.concat(futureLabels),
                         datasets: [
-                            {
-                                label: "Historical Price",
-                                data: historyPrices.concat(Array(futurePrices.length).fill(null)),
-                                borderColor: "#5792fe",
-                                backgroundColor: "rgba(87,146,254,0.08)",
-                                pointRadius: 0,
-                                borderWidth: 2.5,
-                                tension: 0.4,
-                                fill: true
-                            },
-                            {
-                                label: "Predicted Price",
-                                data: Array(historyPrices.length - 1).fill(null).concat([lastPrice]).concat(futurePrices),
-                                borderColor: "#65e261",
-                                borderDash: [6, 4],
-                                pointRadius: 0,
-                                borderWidth: 2.5,
-                                fill: false,
-                                tension: 0.4
-                            }
+                            { label: "Historical Price", data: historyPrices.concat(Array(futurePrices.length).fill(null)), borderColor: "#5792fe", backgroundColor: "rgba(87,146,254,0.08)", pointRadius: 0, borderWidth: 2.5, tension: 0.4, fill: true },
+                            { label: "Predicted Price", data: Array(historyPrices.length - 1).fill(null).concat([lastPrice]).concat(futurePrices), borderColor: "#65e261", borderDash: [6, 4], pointRadius: 0, borderWidth: 2.5, fill: false, tension: 0.4 }
                         ]
                     },
                     options: getChartOptions(false)
@@ -1282,11 +895,7 @@
                 return;
             }
             
-            document.getElementById("stockResult").innerHTML = `
-                <div style='display:flex;align-items:center;gap:14px;'>
-                  <div class="spinner"></div>
-                  <span>Loading analysis for '<b>${ticker}</b>' ...</span>
-                </div>`;
+            document.getElementById("stockResult").innerHTML = `<div style='display:flex;align-items:center;gap:14px;'><div class="spinner"></div><span>Loading analysis for '<b>${ticker}</b>' ...</span></div>`;
             document.getElementById("stockLogoContainer").style.display = "none";
             document.getElementById("stockResult").style.display = "block";
             document.getElementById("stockHistorySection").style.display = "none";
@@ -1297,9 +906,7 @@
             document.getElementById("stockLongTermContainer").style.display = "none";
             
             try {
-                const response = await fetch(`/api/predict-stock?ticker=${encodeURIComponent(ticker)}`, {
-                    headers: getAuthHeaders()
-                });
+                const response = await fetch(`/api/predict-stock?ticker=${encodeURIComponent(ticker)}`, { headers: getAuthHeaders() });
                 const data = await response.json();
                 
                 if (data.error || data.detail) {
@@ -1329,7 +936,7 @@
             }
         }
         
-        // Initialize everything
+        // Initialize
         loadSolanaPrice();
         setInterval(loadSolanaPrice, 30000);
         loadMarketIndices();
@@ -1339,4 +946,3 @@
     </script>
 </body>
 </html>
-                    
