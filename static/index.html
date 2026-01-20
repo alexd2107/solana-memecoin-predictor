@@ -738,50 +738,50 @@
             }
         });
 
-        async function connectWallet() {
-            try {
-                const { solana } = window;
-
-                if (!solana || !solana.isPhantom) {
-                    alert('Phantom wallet not detected! Please install Phantom wallet extension.');
-                    window.open('https://phantom.app/', '_blank');
-                    return;
-                }
-
-                const response = await solana.connect();
-                const walletAddress = response.publicKey.toString();
-
-                if (authToken && currentUser && !currentUser.is_dev) {
-                    try {
-                        const linkResponse = await fetch(`/api/auth/connect-wallet?wallet_address=${encodeURIComponent(walletAddress)}`, {
-                            method: 'POST',
-                            headers: { 'Authorization': `Bearer ${authToken}` }
-                        });
-
-                        const linkData = await linkResponse.json();
-
-                        if (linkResponse.ok) {
-                            currentUser.wallet_address = walletAddress;
-                            localStorage.setItem('currentUser', JSON.stringify(currentUser));
-                            updateAuthUI();
-                            alert('Wallet connected to your account!');
-                        } else {
-                            alert(linkData.detail || 'Failed to link wallet');
-                        }
-                    } catch {
-                        alert('Wallet connected, but failed to link to account.');
-                    }
-                } else {
-                    alert(`Wallet connected: ${walletAddress.slice(0, 4)}...${walletAddress.slice(-4)}`);
-                }
-            } catch (err) {
-                if (err.message && err.message.includes('User rejected')) {
-                    alert('Wallet connection cancelled');
-                } else {
-                    alert('Failed to connect wallet.');
-                }
-            }
+async function connectWallet() {
+    try {
+        const solana = window.solana;
+        
+        if (!solana || !solana.isPhantom) {
+            alert('Phantom wallet not detected! Please install Phantom wallet extension.');
+            window.open('https://phantom.app/', '_blank');
+            return;
         }
+        
+        const response = await solana.connect();
+        const walletAddress = response.publicKey.toString();
+        
+        if (authToken && currentUser && !currentUser.is_dev) {
+            try {
+                const linkResponse = await fetch(`/api/auth/connect-wallet?wallet_address=${encodeURIComponent(walletAddress)}`, {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${authToken}` }
+                });
+                
+                const linkData = await linkResponse.json();
+                
+                if (linkResponse.ok) {
+                    currentUser.wallet_address = walletAddress;
+                    localStorage.setItem('currentUser', JSON.stringify(currentUser));
+                    updateAuthUI();
+                    alert('Wallet connected to your account!');
+                } else {
+                    alert(linkData.detail || 'Failed to link wallet');
+                }
+            } catch {
+                alert('Wallet connected, but failed to link to account.');
+            }
+        } else {
+            alert(`Wallet connected: ${walletAddress.slice(0, 4)}...${walletAddress.slice(-4)}`);
+        }
+    } catch (err) {
+        if (err.message && err.message.includes('User rejected')) {
+            alert('Wallet connection cancelled');
+        } else {
+            alert('Failed to connect wallet.');
+        }
+    }
+}
 
         async function viewAllUsers() {
             if (!currentUser || !currentUser.is_dev) {
