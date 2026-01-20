@@ -21,7 +21,6 @@ import secrets
 
 app = FastAPI()
 
-# CORS for wallet connection
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -30,10 +29,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Mount static files
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
-# API Keys (existing)
+# API Keys
 BITQUERY_API_KEY = "ory_at_f1B3dQRfIiJSDEKQOkxr4OXXQ1tMwcMN6CQuIWjevc4.4ySJCw0ZUx-zS5nXnJUXRY59X9NXR6uWf_RnEaNvlqc"
 MORALIS_API_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJub25jZSI6ImU0ZGQzYzQyLWIyYjgtNDNkZC1iZmE4LTgzMmU3NTgzNzM3YiIsIm9yZ0lkIjoiNDA5MjA3IiwidXNlcklkIjoiNDIwNTY5IiwidHlwZUlkIjoiNjljNzBmMzYtNzBjMS00OTVlLThkNzAtYjM2NzRlMzFjYzExIiwidHlwZSI6IlBST0pFQ1QiLCJpYXQiOjE3MzAwNzQ2MDUsImV4cCI6NDg4NTgzNDYwNX0.ZHXgLyqMR9ijN-vKFxzxgwf0WPKJXcmdsFQCZsDIzOI"
 OPENAI_API_KEY = "sk-proj-mz9TE9TCZnsq66V3O-C1M1JjD80Q92tsEEu4WJutZcjkqSKCf_yN8Cy3FdH-4DafD56-YxBvzfT3BlbkFJwNc0wDdGkEKpD6wvRcO8K-CqmIY4Kz1DVPJHNy-oi5z_zNgjw4P4zMuOSk-cC9XQ19fqisA"
@@ -42,23 +40,18 @@ HELIUS_API_KEY = "aa25304b-753b-466b-ad17-598a69c0cb7c"
 HELIUS_URL = f"https://mainnet.helius-rpc.com/?api-key={HELIUS_API_KEY}"
 FINNHUB_API_KEY = "d5jqh61r01qjaedr7460"
 
-# Discord Webhooks
 DISCORD_WEBHOOK_CRYPTO = "https://discord.com/api/webhooks/1437292750960594975/2EHZkITnwOC3PwG-h1es1hokmehqlcvUpP6QJPMsIdMjI54YZtP0NdNyEzuE-CCwbRF5"
 DISCORD_WEBHOOK_STOCK = "https://discord.com/api/webhooks/1460815556130246729/7yfC-1AAJ51T9aVrtcU0cNQBxfZXLl177kNMiSVJfd6bamVHG-4u4VRJAPh8d94wlK1s"
 
-# JWT Settings
-SECRET_KEY = secrets.token_urlsafe(32)  # Generate random secret key
+SECRET_KEY = secrets.token_urlsafe(32)
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7  # 7 days
+ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7
 
-# Password hashing
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 security = HTTPBearer()
 
-# Initialize OpenAI client
 client = OpenAI(api_key=OPENAI_API_KEY)
 
-# Load the trained model
 try:
     with open('solana_model.pkl', 'rb') as f:
         model = pickle.load(f)
@@ -67,16 +60,13 @@ except Exception:
     print("Warning: Model file not found")
 
 
-# ===== DATABASE SETUP =====
-
-# Create SQLite database
+# DATABASE SETUP
 SQLALCHEMY_DATABASE_URL = "sqlite:///./market_analyst.db"
 engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False})
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
 
-# Database Models
 class User(Base):
     __tablename__ = "users"
     
@@ -95,23 +85,21 @@ class AnalysisHistory(Base):
     
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    analysis_type = Column(String, nullable=False)  # "crypto" or "stock"
+    analysis_type = Column(String, nullable=False)
     symbol = Column(String, nullable=False)
     name = Column(String, nullable=True)
     price = Column(Float, nullable=True)
     prediction = Column(String, nullable=False)
     confidence = Column(Integer, nullable=True)
-    position_type = Column(String, nullable=True)  # For stocks: LONG/SHORT
+    position_type = Column(String, nullable=True)
     timestamp = Column(DateTime, default=datetime.utcnow)
     
     user = relationship("User", back_populates="analyses")
 
 
-# Create tables
 Base.metadata.create_all(bind=engine)
 
 
-# Dependency to get DB session
 def get_db():
     db = SessionLocal()
     try:
@@ -119,8 +107,6 @@ def get_db():
     finally:
         db.close()
 
-
-# ===== AUTH HELPER FUNCTIONS =====
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     return pwd_context.verify(plain_password, hashed_password)
@@ -142,7 +128,6 @@ def create_access_token(data: dict, expires_delta: timedelta = None):
 
 
 def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security), db: Session = Depends(get_db)) -> User:
-    """Get current user from JWT token"""
     try:
         token = credentials.credentials
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
@@ -159,23 +144,18 @@ def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(securit
 
 
 def get_current_user_optional(credentials: Optional[HTTPAuthorizationCredentials] = Depends(security), db: Session = Depends(get_db)) -> Optional[User]:
-    """Get current user if authenticated, otherwise None (for optional auth)"""
     if not credentials:
         return None
     try:
         return get_current_user(credentials, db)
     except HTTPException:
         return None
-# ===== AUTH ENDPOINTS =====
+# AUTH ENDPOINTS
 
 @app.post("/api/auth/signup")
 async def signup(email: str, username: str, password: str, db: Session = Depends(get_db)):
-    """Create new user account"""
     try:
-        # Check if user already exists
-        existing_user = db.query(User).filter(
-            (User.email == email) | (User.username == username)
-        ).first()
+        existing_user = db.query(User).filter((User.email == email) | (User.username == username)).first()
         
         if existing_user:
             if existing_user.email == email:
@@ -183,19 +163,13 @@ async def signup(email: str, username: str, password: str, db: Session = Depends
             else:
                 raise HTTPException(status_code=400, detail="Username already taken")
         
-        # Create new user
         hashed_password = get_password_hash(password)
-        new_user = User(
-            email=email,
-            username=username,
-            hashed_password=hashed_password
-        )
+        new_user = User(email=email, username=username, hashed_password=hashed_password)
         
         db.add(new_user)
         db.commit()
         db.refresh(new_user)
         
-        # Create access token
         access_token = create_access_token(data={"sub": email})
         
         return {
@@ -208,7 +182,6 @@ async def signup(email: str, username: str, password: str, db: Session = Depends
                 "wallet_address": new_user.wallet_address
             }
         }
-    
     except HTTPException as he:
         raise he
     except Exception as e:
@@ -218,14 +191,12 @@ async def signup(email: str, username: str, password: str, db: Session = Depends
 
 @app.post("/api/auth/login")
 async def login(email: str, password: str, db: Session = Depends(get_db)):
-    """Login with email and password"""
     try:
         user = db.query(User).filter(User.email == email).first()
         
         if not user or not verify_password(password, user.hashed_password):
             raise HTTPException(status_code=401, detail="Incorrect email or password")
         
-        # Create access token
         access_token = create_access_token(data={"sub": email})
         
         return {
@@ -238,7 +209,6 @@ async def login(email: str, password: str, db: Session = Depends(get_db)):
                 "wallet_address": user.wallet_address
             }
         }
-    
     except HTTPException as he:
         raise he
     except Exception as e:
@@ -247,14 +217,11 @@ async def login(email: str, password: str, db: Session = Depends(get_db)):
 
 @app.post("/api/auth/connect-wallet")
 async def connect_wallet(wallet_address: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    """Connect Solana wallet to user account"""
     try:
-        # Check if wallet already connected to another user
         existing_wallet = db.query(User).filter(User.wallet_address == wallet_address).first()
         if existing_wallet and existing_wallet.id != current_user.id:
             raise HTTPException(status_code=400, detail="Wallet already connected to another account")
         
-        # Update user's wallet address
         current_user.wallet_address = wallet_address
         db.commit()
         
@@ -267,7 +234,6 @@ async def connect_wallet(wallet_address: str, current_user: User = Depends(get_c
                 "wallet_address": current_user.wallet_address
             }
         }
-    
     except HTTPException as he:
         raise he
     except Exception as e:
@@ -277,7 +243,6 @@ async def connect_wallet(wallet_address: str, current_user: User = Depends(get_c
 
 @app.get("/api/auth/me")
 async def get_current_user_info(current_user: User = Depends(get_current_user)):
-    """Get current user info"""
     return {
         "email": current_user.email,
         "username": current_user.username,
@@ -293,7 +258,6 @@ async def get_user_history(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Get user's analysis history"""
     try:
         query = db.query(AnalysisHistory).filter(AnalysisHistory.user_id == current_user.id)
         
@@ -319,14 +283,12 @@ async def get_user_history(
                 for a in analyses
             ]
         }
-    
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error fetching history: {str(e)}")
 
 
 @app.get("/api/user/stats")
 async def get_user_stats(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    """Get user analytics and stats"""
     try:
         total_analyses = db.query(AnalysisHistory).filter(AnalysisHistory.user_id == current_user.id).count()
         crypto_analyses = db.query(AnalysisHistory).filter(
@@ -338,7 +300,6 @@ async def get_user_stats(current_user: User = Depends(get_current_user), db: Ses
             AnalysisHistory.analysis_type == "stock"
         ).count()
         
-        # Get most searched symbols
         recent_analyses = db.query(AnalysisHistory).filter(
             AnalysisHistory.user_id == current_user.id
         ).order_by(AnalysisHistory.timestamp.desc()).limit(100).all()
@@ -357,23 +318,66 @@ async def get_user_stats(current_user: User = Depends(get_current_user), db: Ses
             "member_since": current_user.created_at.isoformat(),
             "wallet_connected": current_user.wallet_address is not None
         }
-    
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error fetching stats: {str(e)}")
 
 
-def save_analysis_to_history(
-    user: Optional[User],
-    analysis_type: str,
-    symbol: str,
-    name: str,
-    price: float,
-    prediction: str,
-    confidence: int,
-    position_type: str = None,
-    db: Session = None
-):
-    """Save analysis to user's history (if logged in)"""
+@app.get("/api/admin/users")
+async def get_all_users(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Admin: Get all registered users (dev only)"""
+    try:
+        users = db.query(User).order_by(User.created_at.desc()).all()
+        
+        return {
+            "total_users": len(users),
+            "users": [
+                {
+                    "id": u.id,
+                    "username": u.username,
+                    "email": u.email,
+                    "wallet_address": u.wallet_address,
+                    "created_at": u.created_at.isoformat(),
+                    "total_analyses": len(u.analyses)
+                }
+                for u in users
+            ]
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error fetching users: {str(e)}")
+
+
+@app.get("/api/admin/analyses")
+async def get_all_analyses(limit: int = 100, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Admin: Get all user analyses (dev only)"""
+    try:
+        analyses = db.query(AnalysisHistory).order_by(AnalysisHistory.timestamp.desc()).limit(limit).all()
+        
+        return {
+            "total": len(analyses),
+            "analyses": [
+                {
+                    "id": a.id,
+                    "user_id": a.user_id,
+                    "username": a.user.username if a.user else "Unknown",
+                    "type": a.analysis_type,
+                    "symbol": a.symbol,
+                    "name": a.name,
+                    "price": a.price,
+                    "prediction": a.prediction,
+                    "confidence": a.confidence,
+                    "position_type": a.position_type,
+                    "timestamp": a.timestamp.isoformat()
+                }
+                for a in analyses
+            ]
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error fetching analyses: {str(e)}")
+
+
+def save_analysis_to_history(user: Optional[User], analysis_type: str, symbol: str, name: str,
+                             price: float, prediction: str, confidence: int,
+                             position_type: str = None, db: Session = None):
     if not user or not db:
         return
     
@@ -393,7 +397,7 @@ def save_analysis_to_history(
     except Exception as e:
         print(f"Failed to save analysis to history: {e}")
         db.rollback()
-# ===== CRYPTO FUNCTIONS =====
+# CRYPTO FUNCTIONS
 
 def get_token_onchain_info(mint_address: str) -> dict:
     url = "https://pro-api.solscan.io/v2.0/token/holdersv2"
@@ -436,7 +440,7 @@ def get_dexscreener_chart_url(mint_address: str) -> str:
     return f"https://dexscreener.com/solana/{mint_address}"
 
 
-def get_creator_history(creator_address: str | None) -> dict | None:
+def get_creator_history(creator_address: Optional[str]) -> Optional[dict]:
     if not creator_address:
         return None
     
@@ -491,7 +495,7 @@ def get_creator_history(creator_address: str | None) -> dict | None:
 
 
 def risk_gate(price: float, volume24h: float, liquidity: float,
-              holder_metrics: dict | None = None, creator_history: dict | None = None):
+              holder_metrics: Optional[dict] = None, creator_history: Optional[dict] = None):
     reasons = []
     high_risk = False
     vol_liq_ratio = volume24h / liquidity if liquidity > 0 else 0
@@ -541,8 +545,9 @@ def risk_gate(price: float, volume24h: float, liquidity: float,
     return high_risk, reasons, vol_liq_ratio
 
 
-def send_discord_notification(symbol: str, token_name: str = None, price: float = None,
-                              prediction: str = None, volume24h: float = None, liquidity: float = None):
+def send_discord_notification(symbol: str, token_name: Optional[str] = None, price: Optional[float] = None,
+                              prediction: Optional[str] = None, volume24h: Optional[float] = None,
+                              liquidity: Optional[float] = None):
     try:
         color = 5814783
         if prediction and "10x+ GAIN" in prediction:
@@ -582,8 +587,9 @@ def send_discord_notification(symbol: str, token_name: str = None, price: float 
         print(f"Discord crypto notification failed: {e}")
 
 
-def send_stock_discord_notification(ticker: str, company_name: str = None, price: float = None,
-                                    prediction: str = None, sector: str = None, position_type: str = None):
+def send_stock_discord_notification(ticker: str, company_name: Optional[str] = None, price: Optional[float] = None,
+                                    prediction: Optional[str] = None, sector: Optional[str] = None,
+                                    position_type: Optional[str] = None):
     try:
         color = 5814783
         if prediction and "STRONG BUY" in prediction:
@@ -655,9 +661,8 @@ def analyze_chart_image(chart_url: str) -> str:
         return f"❌ Chart analysis unavailable: {str(e)}"
 
 
-def predict_trend(price: float, volume24h: float, liquidity: float,
-                  mint_address: str = None, holder_metrics: dict | None = None,
-                  creator_history: dict | None = None) -> dict:
+def predict_trend(price: float, volume24h: float, liquidity: float, mint_address: Optional[str] = None,
+                  holder_metrics: Optional[dict] = None, creator_history: Optional[dict] = None) -> dict:
     
     high_risk, reasons, vol_liq_ratio = risk_gate(price, volume24h, liquidity, holder_metrics, creator_history)
     
@@ -838,10 +843,9 @@ def predict_trend(price: float, volume24h: float, liquidity: float,
         'lowest_price': price * max_drop_mult,
         'chart_analysis': chart_analysis
     }
-# ===== STOCK NEWS & SENTIMENT =====
+# STOCK NEWS & SENTIMENT
 
 def get_stock_news(ticker: str) -> list:
-    """Fetch recent news for a stock from Finnhub"""
     try:
         from_date = (datetime.now() - timedelta(days=7)).strftime('%Y-%m-%d')
         to_date = datetime.now().strftime('%Y-%m-%d')
@@ -860,7 +864,6 @@ def get_stock_news(ticker: str) -> list:
 
 
 def analyze_news_sentiment(ticker: str, news_articles: list) -> dict:
-    """Use GPT-4 to analyze news sentiment and extract key events"""
     if not news_articles:
         return {"sentiment": "neutral", "sentiment_score": 0, "key_headlines": [], "analysis": "No recent news available."}
     
@@ -918,21 +921,15 @@ ANALYSIS: [your analysis]"""}],
         except:
             pass
         
-        return {
-            "sentiment": sentiment,
-            "sentiment_score": sentiment_score,
-            "key_headlines": key_headlines[:3],
-            "analysis": analysis_summary
-        }
+        return {"sentiment": sentiment, "sentiment_score": sentiment_score, "key_headlines": key_headlines[:3], "analysis": analysis_summary}
     except Exception as e:
         print(f"News sentiment analysis error: {e}")
         return {"sentiment": "neutral", "sentiment_score": 0, "key_headlines": [], "analysis": "Unable to analyze news sentiment."}
 
 
-# ===== STOCK FUNCTIONS (ROBUST VERSIONS) =====
+# STOCK FUNCTIONS
 
-def get_stock_data(ticker: str) -> dict:
-    """Fetch stock price, volume, and market data using yfinance (ROBUST VERSION)"""
+def get_stock_data(ticker: str) -> Optional[dict]:
     try:
         stock = yf.Ticker(ticker)
         hist = stock.history(period="5d")
@@ -950,30 +947,19 @@ def get_stock_data(ticker: str) -> dict:
             market_cap = info.get("marketCap", 0) or 0
             sector = info.get("sector", "Unknown") or "Unknown"
             industry = info.get("industry", "Unknown") or "Unknown"
-        except Exception as info_error:
-            print(f"Info fetch partial failure for {ticker}, using defaults: {info_error}")
+        except Exception:
             name = ticker
             market_cap = 0
             sector = "Technology"
             industry = "Unknown"
         
-        print(f"Successfully fetched data for {ticker}: ${current_price:.2f}")
-        
-        return {
-            "price": float(current_price),
-            "volume": float(volume),
-            "market_cap": market_cap,
-            "name": name,
-            "sector": sector,
-            "industry": industry
-        }
+        return {"price": float(current_price), "volume": float(volume), "market_cap": market_cap, "name": name, "sector": sector, "industry": industry}
     except Exception as e:
         print(f"Stock data error for {ticker}: {e}")
         return None
 
 
 def get_stock_fundamentals(ticker: str) -> dict:
-    """Fetch stock fundamentals (P/E, EPS, revenue, debt) - ROBUST VERSION"""
     try:
         stock = yf.Ticker(ticker)
         info = stock.info
@@ -991,15 +977,10 @@ def get_stock_fundamentals(ticker: str) -> dict:
         }
     except Exception as e:
         print(f"Fundamentals error for {ticker}: {e}")
-        return {
-            "pe_ratio": 0, "forward_pe": 0, "eps": 0, "revenue_growth": 0,
-            "profit_margin": 0, "debt_to_equity": 0, "return_on_equity": 0,
-            "analyst_rating": "none", "target_price": 0
-        }
+        return {"pe_ratio": 0, "forward_pe": 0, "eps": 0, "revenue_growth": 0, "profit_margin": 0, "debt_to_equity": 0, "return_on_equity": 0, "analyst_rating": "none", "target_price": 0}
 
 
 def get_stock_technicals(ticker: str) -> dict:
-    """Calculate technical indicators (RSI, moving averages) - ROBUST VERSION"""
     try:
         stock = yf.Ticker(ticker)
         hist = stock.history(period="3mo")
@@ -1031,7 +1012,6 @@ def get_stock_technicals(ticker: str) -> dict:
 
 
 def stock_risk_gate(fundamentals: dict, technicals: dict, stock_data: dict) -> tuple:
-    """Evaluate stock risk (FIXED: context-aware debt)"""
     reasons = []
     high_risk = False
     
@@ -1081,8 +1061,7 @@ def stock_risk_gate(fundamentals: dict, technicals: dict, stock_data: dict) -> t
         reasons.append(f"✅ RSI extremely oversold ({rsi:.1f}) — possible bounce opportunity")
     
     return high_risk, reasons
-def predict_stock_trend(ticker: str, stock_data: dict, fundamentals: dict, technicals: dict, news_sentiment: dict = None) -> dict:
-    """Predict stock trend based on fundamentals, technicals, and news"""
+def predict_stock_trend(ticker: str, stock_data: dict, fundamentals: dict, technicals: dict, news_sentiment: Optional[dict] = None) -> dict:
     price = stock_data["price"]
     high_risk, reasons = stock_risk_gate(fundamentals, technicals, stock_data)
     
@@ -1200,23 +1179,18 @@ def predict_stock_trend(ticker: str, stock_data: dict, fundamentals: dict, techn
     
     if score >= 17:
         prediction_text = "🔥 STRONG BUY"
-        confidence_level = "VERY HIGH CONFIDENCE"
         target_mult = 1.5
     elif score >= 14:
         prediction_text = "🚀 BUY"
-        confidence_level = "HIGH CONFIDENCE"
         target_mult = 1.3
     elif score >= 10:
         prediction_text = "⚡ MODERATE BUY"
-        confidence_level = "MODERATE CONFIDENCE"
         target_mult = 1.15
     elif score >= 6:
         prediction_text = "📊 HOLD"
-        confidence_level = "LOW CONFIDENCE"
         target_mult = 1.05
     else:
         prediction_text = "⚠️ WEAK / HOLD"
-        confidence_level = "LOW CONFIDENCE"
         target_mult = 1.0
     
     if score < 4:
@@ -1236,7 +1210,7 @@ def predict_stock_trend(ticker: str, stock_data: dict, fundamentals: dict, techn
         position_reasoning = "Mixed signals; wait for clearer setup before entering position."
     
     if target_mult >= 1.5:
-        recommendation = "✅ RECOMMENDATION: Strong buy with 50%+ upside potential. Consider position sizing."
+        recommendation = "✅ RECOMMENDATION: Strong buy with 50%+ upside potential."
     elif target_mult >= 1.3:
         recommendation = "✅ RECOMMENDATION: Good buy opportunity with 30%+ upside."
     elif target_mult >= 1.15:
@@ -1261,7 +1235,6 @@ Key Headlines:
     reasoning_output = f"""📊 INVESTMENT SCORE: {score}/20
 
 🎯 PREDICTION: {prediction_text}
-💪 CONFIDENCE: {confidence_level}
 
 {chr(10).join(reasoning_parts)}
 
@@ -1284,9 +1257,7 @@ Key Headlines:
 
 @app.get("/api/predict")
 async def predict(symbol: str, credentials: Optional[HTTPAuthorizationCredentials] = Depends(HTTPBearer(auto_error=False)), db: Session = Depends(get_db)):
-    """Crypto prediction endpoint (saves to history if logged in)"""
     try:
-        # Get current user if authenticated
         current_user = None
         if credentials:
             try:
@@ -1315,32 +1286,16 @@ async def predict(symbol: str, credentials: Optional[HTTPAuthorizationCredential
                 
                 result = predict_trend(price, volume24h, liquidity, token_address, holder_metrics, creator_history)
                 
-                # Save to user history if logged in
                 if current_user:
-                    save_analysis_to_history(
-                        user=current_user,
-                        analysis_type="crypto",
-                        symbol=token_symbol,
-                        name=token_name,
-                        price=price,
-                        prediction=result['prediction'],
-                        confidence=result['confidence'],
-                        db=db
-                    )
+                    save_analysis_to_history(user=current_user, analysis_type="crypto", symbol=token_symbol, name=token_name,
+                                            price=price, prediction=result['prediction'], confidence=result['confidence'], db=db)
                 
                 send_discord_notification(token_symbol, token_name, price, result['prediction'], volume24h, liquidity)
                 
                 return {
-                    'symbol': token_symbol,
-                    'name': token_name,
-                    'price': price,
-                    'volume24h': volume24h,
-                    'liquidity': liquidity,
-                    'prediction': result['prediction'],
-                    'confidence': result['confidence'],
-                    'reasoning': result['reasoning'],
-                    'highest_price': result['highest_price'],
-                    'lowest_price': result['lowest_price'],
+                    'symbol': token_symbol, 'name': token_name, 'price': price, 'volume24h': volume24h, 'liquidity': liquidity,
+                    'prediction': result['prediction'], 'confidence': result['confidence'], 'reasoning': result['reasoning'],
+                    'highest_price': result['highest_price'], 'lowest_price': result['lowest_price'],
                     'chart_analysis': result['chart_analysis']
                 }
         
@@ -1351,9 +1306,7 @@ async def predict(symbol: str, credentials: Optional[HTTPAuthorizationCredential
 
 @app.get("/api/predict-stock")
 async def predict_stock(ticker: str, credentials: Optional[HTTPAuthorizationCredentials] = Depends(HTTPBearer(auto_error=False)), db: Session = Depends(get_db)):
-    """Stock prediction endpoint with news (saves to history if logged in)"""
     try:
-        # Get current user if authenticated
         current_user = None
         if credentials:
             try:
@@ -1362,7 +1315,6 @@ async def predict_stock(ticker: str, credentials: Optional[HTTPAuthorizationCred
                 pass
         
         ticker = ticker.upper().strip()
-        
         stock_data = get_stock_data(ticker)
         if not stock_data:
             raise HTTPException(status_code=404, detail="Stock not found")
@@ -1371,42 +1323,22 @@ async def predict_stock(ticker: str, credentials: Optional[HTTPAuthorizationCred
         technicals = get_stock_technicals(ticker)
         news_articles = get_stock_news(ticker)
         news_sentiment = analyze_news_sentiment(ticker, news_articles)
-        
         result = predict_stock_trend(ticker, stock_data, fundamentals, technicals, news_sentiment)
         
-        # Save to user history if logged in
         if current_user:
-            save_analysis_to_history(
-                user=current_user,
-                analysis_type="stock",
-                symbol=ticker,
-                name=stock_data['name'],
-                price=stock_data['price'],
-                prediction=result['prediction'],
-                confidence=result['confidence'],
-                position_type=result['position_type'],
-                db=db
-            )
+            save_analysis_to_history(user=current_user, analysis_type="stock", symbol=ticker, name=stock_data['name'],
+                                    price=stock_data['price'], prediction=result['prediction'],
+                                    confidence=result['confidence'], position_type=result['position_type'], db=db)
         
-        send_stock_discord_notification(ticker, stock_data['name'], stock_data['price'], 
-                                        result['prediction'], stock_data['sector'], result['position_type'])
+        send_stock_discord_notification(ticker, stock_data['name'], stock_data['price'], result['prediction'],
+                                        stock_data['sector'], result['position_type'])
         
         return {
-            'ticker': ticker,
-            'name': stock_data['name'],
-            'price': stock_data['price'],
-            'volume': stock_data['volume'],
-            'market_cap': stock_data['market_cap'],
-            'sector': stock_data['sector'],
-            'prediction': result['prediction'],
-            'confidence': result['confidence'],
-            'reasoning': result['reasoning'],
-            'target_price': result['target_price'],
-            'stop_loss': result['stop_loss'],
-            'position_type': result['position_type'],
-            'position_reasoning': result['position_reasoning'],
-            'fundamentals': fundamentals,
-            'technicals': technicals,
+            'ticker': ticker, 'name': stock_data['name'], 'price': stock_data['price'], 'volume': stock_data['volume'],
+            'market_cap': stock_data['market_cap'], 'sector': stock_data['sector'], 'prediction': result['prediction'],
+            'confidence': result['confidence'], 'reasoning': result['reasoning'], 'target_price': result['target_price'],
+            'stop_loss': result['stop_loss'], 'position_type': result['position_type'],
+            'position_reasoning': result['position_reasoning'], 'fundamentals': fundamentals, 'technicals': technicals,
             'news_sentiment': news_sentiment
         }
     except HTTPException as he:
@@ -1453,7 +1385,7 @@ async def get_trending_stocks():
                 continue
         
         return {'stocks': results}
-    except Exception as e:
+    except Exception:
         return {'stocks': []}
 
 
@@ -1538,7 +1470,7 @@ async def get_history(symbol: str):
         
         all_prices = [p['price'] for p in history] + [p['price'] for p in future]
         return {'history': history, 'future': future, 'high_prediction': max(all_prices), 'low_prediction': min(all_prices)}
-    except Exception as e:
+    except Exception:
         current_time = datetime.now()
         fallback_price = 0.0001
         return {
@@ -1677,7 +1609,7 @@ async def get_market_indices():
                 continue
         
         return {'indices': results}
-    except Exception as e:
+    except Exception:
         return {'indices': []}
 
 
