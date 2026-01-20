@@ -5,3 +5,7 @@ numpy
 scikit-learn
 openai
 yfinance
+sqlalchemy
+passlib[bcrypt]
+python-jose[cryptography]
+python-multipart

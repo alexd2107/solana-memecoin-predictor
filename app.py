@@ -1,6 +1,8 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Depends, status
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi.middleware.cors import CORSMiddleware
 import requests
 import pickle
 import numpy as np
@@ -9,13 +11,29 @@ import random
 import base64
 from openai import OpenAI
 import yfinance as yf
+from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime, ForeignKey
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker, Session, relationship
+from passlib.context import CryptContext
+from jose import JWTError, jwt
+from typing import Optional
+import secrets
 
 app = FastAPI()
+
+# CORS for wallet connection
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # Mount static files
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
-# API Keys
+# API Keys (existing)
 BITQUERY_API_KEY = "ory_at_f1B3dQRfIiJSDEKQOkxr4OXXQ1tMwcMN6CQuIWjevc4.4ySJCw0ZUx-zS5nXnJUXRY59X9NXR6uWf_RnEaNvlqc"
 MORALIS_API_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJub25jZSI6ImU0ZGQzYzQyLWIyYjgtNDNkZC1iZmE4LTgzMmU3NTgzNzM3YiIsIm9yZ0lkIjoiNDA5MjA3IiwidXNlcklkIjoiNDIwNTY5IiwidHlwZUlkIjoiNjljNzBmMzYtNzBjMS00OTVlLThkNzAtYjM2NzRlMzFjYzExIiwidHlwZSI6IlBST0pFQ1QiLCJpYXQiOjE3MzAwNzQ2MDUsImV4cCI6NDg4NTgzNDYwNX0.ZHXgLyqMR9ijN-vKFxzxgwf0WPKJXcmdsFQCZsDIzOI"
 OPENAI_API_KEY = "sk-proj-mz9TE9TCZnsq66V3O-C1M1JjD80Q92tsEEu4WJutZcjkqSKCf_yN8Cy3FdH-4DafD56-YxBvzfT3BlbkFJwNc0wDdGkEKpD6wvRcO8K-CqmIY4Kz1DVPJHNy-oi5z_zNgjw4P4zMuOSk-cC9XQ19fqisA"
@@ -24,9 +42,18 @@ HELIUS_API_KEY = "aa25304b-753b-466b-ad17-598a69c0cb7c"
 HELIUS_URL = f"https://mainnet.helius-rpc.com/?api-key={HELIUS_API_KEY}"
 FINNHUB_API_KEY = "d5jqh61r01qjaedr7460"
 
-# Discord Webhooks (separate for crypto and stocks)
+# Discord Webhooks
 DISCORD_WEBHOOK_CRYPTO = "https://discord.com/api/webhooks/1437292750960594975/2EHZkITnwOC3PwG-h1es1hokmehqlcvUpP6QJPMsIdMjI54YZtP0NdNyEzuE-CCwbRF5"
 DISCORD_WEBHOOK_STOCK = "https://discord.com/api/webhooks/1460815556130246729/7yfC-1AAJ51T9aVrtcU0cNQBxfZXLl177kNMiSVJfd6bamVHG-4u4VRJAPh8d94wlK1s"
+
+# JWT Settings
+SECRET_KEY = secrets.token_urlsafe(32)  # Generate random secret key
+ALGORITHM = "HS256"
+ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7  # 7 days
+
+# Password hashing
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+security = HTTPBearer()
 
 # Initialize OpenAI client
 client = OpenAI(api_key=OPENAI_API_KEY)
@@ -40,7 +67,333 @@ except Exception:
     print("Warning: Model file not found")
 
 
-# ===== CRYPTO: On-chain + creator history helpers =====
+# ===== DATABASE SETUP =====
+
+# Create SQLite database
+SQLALCHEMY_DATABASE_URL = "sqlite:///./market_analyst.db"
+engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False})
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+Base = declarative_base()
+
+
+# Database Models
+class User(Base):
+    __tablename__ = "users"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    email = Column(String, unique=True, index=True, nullable=False)
+    username = Column(String, unique=True, index=True, nullable=False)
+    hashed_password = Column(String, nullable=False)
+    wallet_address = Column(String, unique=True, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    analyses = relationship("AnalysisHistory", back_populates="user")
+
+
+class AnalysisHistory(Base):
+    __tablename__ = "analysis_history"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    analysis_type = Column(String, nullable=False)  # "crypto" or "stock"
+    symbol = Column(String, nullable=False)
+    name = Column(String, nullable=True)
+    price = Column(Float, nullable=True)
+    prediction = Column(String, nullable=False)
+    confidence = Column(Integer, nullable=True)
+    position_type = Column(String, nullable=True)  # For stocks: LONG/SHORT
+    timestamp = Column(DateTime, default=datetime.utcnow)
+    
+    user = relationship("User", back_populates="analyses")
+
+
+# Create tables
+Base.metadata.create_all(bind=engine)
+
+
+# Dependency to get DB session
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+
+# ===== AUTH HELPER FUNCTIONS =====
+
+def verify_password(plain_password: str, hashed_password: str) -> bool:
+    return pwd_context.verify(plain_password, hashed_password)
+
+
+def get_password_hash(password: str) -> str:
+    return pwd_context.hash(password)
+
+
+def create_access_token(data: dict, expires_delta: timedelta = None):
+    to_encode = data.copy()
+    if expires_delta:
+        expire = datetime.utcnow() + expires_delta
+    else:
+        expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    to_encode.update({"exp": expire})
+    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+    return encoded_jwt
+
+
+def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security), db: Session = Depends(get_db)) -> User:
+    """Get current user from JWT token"""
+    try:
+        token = credentials.credentials
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        email: str = payload.get("sub")
+        if email is None:
+            raise HTTPException(status_code=401, detail="Invalid authentication credentials")
+    except JWTError:
+        raise HTTPException(status_code=401, detail="Invalid authentication credentials")
+    
+    user = db.query(User).filter(User.email == email).first()
+    if user is None:
+        raise HTTPException(status_code=401, detail="User not found")
+    return user
+
+
+def get_current_user_optional(credentials: Optional[HTTPAuthorizationCredentials] = Depends(security), db: Session = Depends(get_db)) -> Optional[User]:
+    """Get current user if authenticated, otherwise None (for optional auth)"""
+    if not credentials:
+        return None
+    try:
+        return get_current_user(credentials, db)
+    except HTTPException:
+        return None
+# ===== AUTH ENDPOINTS =====
+
+@app.post("/api/auth/signup")
+async def signup(email: str, username: str, password: str, db: Session = Depends(get_db)):
+    """Create new user account"""
+    try:
+        # Check if user already exists
+        existing_user = db.query(User).filter(
+            (User.email == email) | (User.username == username)
+        ).first()
+        
+        if existing_user:
+            if existing_user.email == email:
+                raise HTTPException(status_code=400, detail="Email already registered")
+            else:
+                raise HTTPException(status_code=400, detail="Username already taken")
+        
+        # Create new user
+        hashed_password = get_password_hash(password)
+        new_user = User(
+            email=email,
+            username=username,
+            hashed_password=hashed_password
+        )
+        
+        db.add(new_user)
+        db.commit()
+        db.refresh(new_user)
+        
+        # Create access token
+        access_token = create_access_token(data={"sub": email})
+        
+        return {
+            "message": "Account created successfully",
+            "access_token": access_token,
+            "token_type": "bearer",
+            "user": {
+                "email": new_user.email,
+                "username": new_user.username,
+                "wallet_address": new_user.wallet_address
+            }
+        }
+    
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Signup error: {str(e)}")
+
+
+@app.post("/api/auth/login")
+async def login(email: str, password: str, db: Session = Depends(get_db)):
+    """Login with email and password"""
+    try:
+        user = db.query(User).filter(User.email == email).first()
+        
+        if not user or not verify_password(password, user.hashed_password):
+            raise HTTPException(status_code=401, detail="Incorrect email or password")
+        
+        # Create access token
+        access_token = create_access_token(data={"sub": email})
+        
+        return {
+            "message": "Login successful",
+            "access_token": access_token,
+            "token_type": "bearer",
+            "user": {
+                "email": user.email,
+                "username": user.username,
+                "wallet_address": user.wallet_address
+            }
+        }
+    
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Login error: {str(e)}")
+
+
+@app.post("/api/auth/connect-wallet")
+async def connect_wallet(wallet_address: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Connect Solana wallet to user account"""
+    try:
+        # Check if wallet already connected to another user
+        existing_wallet = db.query(User).filter(User.wallet_address == wallet_address).first()
+        if existing_wallet and existing_wallet.id != current_user.id:
+            raise HTTPException(status_code=400, detail="Wallet already connected to another account")
+        
+        # Update user's wallet address
+        current_user.wallet_address = wallet_address
+        db.commit()
+        
+        return {
+            "message": "Wallet connected successfully",
+            "wallet_address": wallet_address,
+            "user": {
+                "email": current_user.email,
+                "username": current_user.username,
+                "wallet_address": current_user.wallet_address
+            }
+        }
+    
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Wallet connection error: {str(e)}")
+
+
+@app.get("/api/auth/me")
+async def get_current_user_info(current_user: User = Depends(get_current_user)):
+    """Get current user info"""
+    return {
+        "email": current_user.email,
+        "username": current_user.username,
+        "wallet_address": current_user.wallet_address,
+        "created_at": current_user.created_at.isoformat()
+    }
+
+
+@app.get("/api/user/history")
+async def get_user_history(
+    limit: int = 50,
+    analysis_type: Optional[str] = None,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get user's analysis history"""
+    try:
+        query = db.query(AnalysisHistory).filter(AnalysisHistory.user_id == current_user.id)
+        
+        if analysis_type:
+            query = query.filter(AnalysisHistory.analysis_type == analysis_type)
+        
+        analyses = query.order_by(AnalysisHistory.timestamp.desc()).limit(limit).all()
+        
+        return {
+            "total": len(analyses),
+            "analyses": [
+                {
+                    "id": a.id,
+                    "type": a.analysis_type,
+                    "symbol": a.symbol,
+                    "name": a.name,
+                    "price": a.price,
+                    "prediction": a.prediction,
+                    "confidence": a.confidence,
+                    "position_type": a.position_type,
+                    "timestamp": a.timestamp.isoformat()
+                }
+                for a in analyses
+            ]
+        }
+    
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error fetching history: {str(e)}")
+
+
+@app.get("/api/user/stats")
+async def get_user_stats(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Get user analytics and stats"""
+    try:
+        total_analyses = db.query(AnalysisHistory).filter(AnalysisHistory.user_id == current_user.id).count()
+        crypto_analyses = db.query(AnalysisHistory).filter(
+            AnalysisHistory.user_id == current_user.id,
+            AnalysisHistory.analysis_type == "crypto"
+        ).count()
+        stock_analyses = db.query(AnalysisHistory).filter(
+            AnalysisHistory.user_id == current_user.id,
+            AnalysisHistory.analysis_type == "stock"
+        ).count()
+        
+        # Get most searched symbols
+        recent_analyses = db.query(AnalysisHistory).filter(
+            AnalysisHistory.user_id == current_user.id
+        ).order_by(AnalysisHistory.timestamp.desc()).limit(100).all()
+        
+        symbol_counts = {}
+        for analysis in recent_analyses:
+            symbol_counts[analysis.symbol] = symbol_counts.get(analysis.symbol, 0) + 1
+        
+        top_symbols = sorted(symbol_counts.items(), key=lambda x: x[1], reverse=True)[:5]
+        
+        return {
+            "total_searches": total_analyses,
+            "crypto_searches": crypto_analyses,
+            "stock_searches": stock_analyses,
+            "top_symbols": [{"symbol": s[0], "count": s[1]} for s in top_symbols],
+            "member_since": current_user.created_at.isoformat(),
+            "wallet_connected": current_user.wallet_address is not None
+        }
+    
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error fetching stats: {str(e)}")
+
+
+def save_analysis_to_history(
+    user: Optional[User],
+    analysis_type: str,
+    symbol: str,
+    name: str,
+    price: float,
+    prediction: str,
+    confidence: int,
+    position_type: str = None,
+    db: Session = None
+):
+    """Save analysis to user's history (if logged in)"""
+    if not user or not db:
+        return
+    
+    try:
+        analysis = AnalysisHistory(
+            user_id=user.id,
+            analysis_type=analysis_type,
+            symbol=symbol,
+            name=name,
+            price=price,
+            prediction=prediction,
+            confidence=confidence,
+            position_type=position_type
+        )
+        db.add(analysis)
+        db.commit()
+    except Exception as e:
+        print(f"Failed to save analysis to history: {e}")
+        db.rollback()
+# ===== CRYPTO FUNCTIONS =====
 
 def get_token_onchain_info(mint_address: str) -> dict:
     url = "https://pro-api.solscan.io/v2.0/token/holdersv2"
@@ -50,7 +403,6 @@ def get_token_onchain_info(mint_address: str) -> dict:
     try:
         resp = requests.get(url, headers=headers, params=params, timeout=10)
         if resp.status_code != 200:
-            print("Solscan holders error:", resp.status_code, resp.text)
             return {"creator": None, "top_holders": [], "lp_locked": True, "total_supply": 0}
         
         data = resp.json()
@@ -65,14 +417,8 @@ def get_token_onchain_info(mint_address: str) -> dict:
                 pct = 0.0
             top_holders.append({"address": h.get("owner"), "pct": pct})
         
-        return {
-            "creator": None,
-            "top_holders": top_holders,
-            "lp_locked": True,
-            "total_supply": data.get("total", 0)
-        }
-    except Exception as e:
-        print("Solscan holders exception:", e)
+        return {"creator": None, "top_holders": top_holders, "lp_locked": True, "total_supply": data.get("total", 0)}
+    except Exception:
         return {"creator": None, "top_holders": [], "lp_locked": True, "total_supply": 0}
 
 
@@ -83,12 +429,7 @@ def get_holder_metrics(onchain_info: dict) -> dict:
     top10_pct = sum(h.get("pct", 0.0) for h in top_holders[:10])
     lp_locked = onchain_info.get("lp_locked", True)
     
-    return {
-        "dev_hold_pct": dev_hold_pct,
-        "top5_pct": top5_pct,
-        "top10_pct": top10_pct,
-        "lp_locked": lp_locked
-    }
+    return {"dev_hold_pct": dev_hold_pct, "top5_pct": top5_pct, "top10_pct": top10_pct, "lp_locked": lp_locked}
 
 
 def get_dexscreener_chart_url(mint_address: str) -> str:
@@ -103,17 +444,8 @@ def get_creator_history(creator_address: str | None) -> dict | None:
         resp = requests.post(
             HELIUS_URL,
             headers={"Content-Type": "application/json"},
-            json={
-                "jsonrpc": "2.0",
-                "id": "creator-history",
-                "method": "getAssetsByCreator",
-                "params": {
-                    "creatorAddress": creator_address,
-                    "onlyVerified": True,
-                    "page": 1,
-                    "limit": 1000,
-                },
-            },
+            json={"jsonrpc": "2.0", "id": "creator-history", "method": "getAssetsByCreator",
+                  "params": {"creatorAddress": creator_address, "onlyVerified": True, "page": 1, "limit": 1000}},
             timeout=10,
         )
         
@@ -130,9 +462,8 @@ def get_creator_history(creator_address: str | None) -> dict | None:
             if not mint:
                 continue
             
-            chart_url = get_dexscreener_chart_url(mint)
-            
             try:
+                chart_url = get_dexscreener_chart_url(mint)
                 chart_response = requests.get(chart_url, timeout=10)
                 if chart_response.status_code != 200:
                     continue
@@ -140,28 +471,10 @@ def get_creator_history(creator_address: str | None) -> dict | None:
                 image_base64 = base64.b64encode(chart_response.content).decode('utf-8')
                 vision_response = client.chat.completions.create(
                     model="gpt-4o",
-                    messages=[{
-                        "role": "user",
-                        "content": [{
-                            "type": "text",
-                            "text": """Analyze this cryptocurrency chart and classify it:
-
-Does this show a PUMP-AND-DUMP / RUG PULL pattern?
-
-Rug indicators:
-- Parabolic spike followed by 80%+ drop
-- Sudden liquidity drain
-- Volume spike then dead volume
-- No recovery after crash
-
-Answer with: RUG: YES or RUG: NO
-
-Then briefly explain why in 1-2 sentences."""
-                        }, {
-                            "type": "image_url",
-                            "image_url": {"url": f"data:image/png;base64,{image_base64}"}
-                        }]
-                    }],
+                    messages=[{"role": "user", "content": [
+                        {"type": "text", "text": "Analyze this cryptocurrency chart and classify it:\n\nDoes this show a PUMP-AND-DUMP / RUG PULL pattern?\n\nRug indicators:\n- Parabolic spike followed by 80%+ drop\n- Sudden liquidity drain\n- Volume spike then dead volume\n- No recovery after crash\n\nAnswer with: RUG: YES or RUG: NO\n\nThen briefly explain why in 1-2 sentences."},
+                        {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{image_base64}"}}
+                    ]}],
                     max_tokens=200
                 )
                 
@@ -172,19 +485,13 @@ Then briefly explain why in 1-2 sentences."""
                 continue
         
         rug_rate = (rugged_tokens / min(total_tokens, 10)) if total_tokens > 0 else 0.0
-        return {
-            "total_tokens": total_tokens,
-            "rugged_tokens": rugged_tokens,
-            "rug_rate": rug_rate,
-            "last_rug_days_ago": None,
-        }
+        return {"total_tokens": total_tokens, "rugged_tokens": rugged_tokens, "rug_rate": rug_rate, "last_rug_days_ago": None}
     except Exception:
         return None
 
 
 def risk_gate(price: float, volume24h: float, liquidity: float,
-              holder_metrics: dict | None = None,
-              creator_history: dict | None = None):
+              holder_metrics: dict | None = None, creator_history: dict | None = None):
     reasons = []
     high_risk = False
     vol_liq_ratio = volume24h / liquidity if liquidity > 0 else 0
@@ -232,9 +539,10 @@ def risk_gate(price: float, volume24h: float, liquidity: float,
             reasons.append(f"⚠️ Creator has prior rug history: {rugged_tokens}/{total_tokens} tokens showed rug patterns.")
     
     return high_risk, reasons, vol_liq_ratio
+
+
 def send_discord_notification(symbol: str, token_name: str = None, price: float = None,
-                              prediction: str = None, volume24h: float = None,
-                              liquidity: float = None):
+                              prediction: str = None, volume24h: float = None, liquidity: float = None):
     try:
         color = 5814783
         if prediction and "10x+ GAIN" in prediction:
@@ -276,7 +584,6 @@ def send_discord_notification(symbol: str, token_name: str = None, price: float 
 
 def send_stock_discord_notification(ticker: str, company_name: str = None, price: float = None,
                                     prediction: str = None, sector: str = None, position_type: str = None):
-    """Send stock search notification to Discord"""
     try:
         color = 5814783
         if prediction and "STRONG BUY" in prediction:
@@ -323,7 +630,7 @@ async def read_root():
 
 @app.get("/api")
 async def get_api():
-    return {"message": "Market Analyst API - Crypto & Stocks", "status": "running"}
+    return {"message": "Market Analyst API - Crypto & Stocks with Auth", "status": "running"}
 
 
 def analyze_chart_image(chart_url: str) -> str:
@@ -335,24 +642,10 @@ def analyze_chart_image(chart_url: str) -> str:
         image_base64 = base64.b64encode(response.content).decode('utf-8')
         vision_response = client.chat.completions.create(
             model="gpt-4o",
-            messages=[{
-                "role": "user",
-                "content": [{
-                    "type": "text",
-                    "text": """Analyze this cryptocurrency chart and provide:
-1. Pattern identification (pump/dump, accumulation, breakout, consolidation, etc.)
-2. Trend direction (bullish/bearish/neutral)
-3. Key support and resistance levels
-4. Volume trend analysis
-5. Risk level (1-10 scale)
-6. Whether this shows multi‑X opportunity potential (YES/NO)
-
-Keep analysis concise and actionable."""
-                }, {
-                    "type": "image_url",
-                    "image_url": {"url": f"data:image/png;base64,{image_base64}"}
-                }]
-            }],
+            messages=[{"role": "user", "content": [
+                {"type": "text", "text": "Analyze this cryptocurrency chart and provide:\n1. Pattern identification (pump/dump, accumulation, breakout, consolidation, etc.)\n2. Trend direction (bullish/bearish/neutral)\n3. Key support and resistance levels\n4. Volume trend analysis\n5. Risk level (1-10 scale)\n6. Whether this shows multi‑X opportunity potential (YES/NO)\n\nKeep analysis concise and actionable."},
+                {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{image_base64}"}}
+            ]}],
             max_tokens=500
         )
         
@@ -362,124 +655,8 @@ Keep analysis concise and actionable."""
         return f"❌ Chart analysis unavailable: {str(e)}"
 
 
-# ===== STOCK NEWS & SENTIMENT ANALYSIS =====
-
-def get_stock_news(ticker: str) -> list:
-    """Fetch recent news for a stock from Finnhub"""
-    try:
-        # Finnhub company news endpoint (last 7 days)
-        from_date = (datetime.now() - timedelta(days=7)).strftime('%Y-%m-%d')
-        to_date = datetime.now().strftime('%Y-%m-%d')
-        
-        url = f"https://finnhub.io/api/v1/company-news?symbol={ticker}&from={from_date}&to={to_date}&token={FINNHUB_API_KEY}"
-        
-        response = requests.get(url, timeout=10)
-        
-        if response.status_code != 200:
-            print(f"Finnhub news error: {response.status_code}")
-            return []
-        
-        news_data = response.json()
-        
-        # Return top 10 most recent articles
-        return news_data[:10] if news_data else []
-    
-    except Exception as e:
-        print(f"News fetch error for {ticker}: {e}")
-        return []
-
-
-def analyze_news_sentiment(ticker: str, news_articles: list) -> dict:
-    """Use GPT-4 to analyze news sentiment and extract key events"""
-    if not news_articles:
-        return {
-            "sentiment": "neutral",
-            "sentiment_score": 0,
-            "key_headlines": [],
-            "analysis": "No recent news available."
-        }
-    
-    try:
-        # Prepare headlines for GPT
-        headlines_text = "\n".join([f"{i+1}. {article.get('headline', 'N/A')}" 
-                                    for i, article in enumerate(news_articles[:10])])
-        
-        gpt_response = client.chat.completions.create(
-            model="gpt-4o",
-            messages=[{
-                "role": "user",
-                "content": f"""Analyze these recent news headlines for {ticker} and provide:
-
-{headlines_text}
-
-Provide:
-1. Overall sentiment (BULLISH / BEARISH / NEUTRAL)
-2. Sentiment score (-10 to +10, where -10 is extremely bearish, +10 is extremely bullish)
-3. Top 3 most important headlines (list them)
-4. Brief analysis (2-3 sentences) of what's happening with this company
-
-Format your response as:
-SENTIMENT: [BULLISH/BEARISH/NEUTRAL]
-SCORE: [number]
-KEY HEADLINES:
-- [headline 1]
-- [headline 2]
-- [headline 3]
-ANALYSIS: [your analysis]"""
-            }],
-            max_tokens=400
-        )
-        
-        analysis_text = gpt_response.choices[0].message.content
-        
-        # Parse GPT response
-        sentiment = "neutral"
-        if "SENTIMENT: BULLISH" in analysis_text:
-            sentiment = "bullish"
-        elif "SENTIMENT: BEARISH" in analysis_text:
-            sentiment = "bearish"
-        
-        # Extract score
-        sentiment_score = 0
-        try:
-            score_line = [line for line in analysis_text.split('\n') if 'SCORE:' in line][0]
-            sentiment_score = int(score_line.split('SCORE:')[1].strip().split()[0])
-        except:
-            pass
-        
-        # Extract key headlines
-        key_headlines = []
-        try:
-            headlines_section = analysis_text.split('KEY HEADLINES:')[1].split('ANALYSIS:')[0]
-            key_headlines = [line.strip('- ').strip() for line in headlines_section.split('\n') if line.strip().startswith('-')]
-        except:
-            key_headlines = [article.get('headline', 'N/A') for article in news_articles[:3]]
-        
-        # Extract analysis
-        analysis_summary = "Recent news analyzed."
-        try:
-            analysis_summary = analysis_text.split('ANALYSIS:')[1].strip()
-        except:
-            pass
-        
-        return {
-            "sentiment": sentiment,
-            "sentiment_score": sentiment_score,
-            "key_headlines": key_headlines[:3],
-            "analysis": analysis_summary
-        }
-    
-    except Exception as e:
-        print(f"News sentiment analysis error: {e}")
-        return {
-            "sentiment": "neutral",
-            "sentiment_score": 0,
-            "key_headlines": [],
-            "analysis": "Unable to analyze news sentiment."
-        }
 def predict_trend(price: float, volume24h: float, liquidity: float,
-                  mint_address: str = None,
-                  holder_metrics: dict | None = None,
+                  mint_address: str = None, holder_metrics: dict | None = None,
                   creator_history: dict | None = None) -> dict:
     
     high_risk, reasons, vol_liq_ratio = risk_gate(price, volume24h, liquidity, holder_metrics, creator_history)
@@ -661,30 +838,134 @@ def predict_trend(price: float, volume24h: float, liquidity: float,
         'lowest_price': price * max_drop_mult,
         'chart_analysis': chart_analysis
     }
+# ===== STOCK NEWS & SENTIMENT =====
+
+def get_stock_news(ticker: str) -> list:
+    """Fetch recent news for a stock from Finnhub"""
+    try:
+        from_date = (datetime.now() - timedelta(days=7)).strftime('%Y-%m-%d')
+        to_date = datetime.now().strftime('%Y-%m-%d')
+        url = f"https://finnhub.io/api/v1/company-news?symbol={ticker}&from={from_date}&to={to_date}&token={FINNHUB_API_KEY}"
+        
+        response = requests.get(url, timeout=10)
+        if response.status_code != 200:
+            print(f"Finnhub news error: {response.status_code}")
+            return []
+        
+        news_data = response.json()
+        return news_data[:10] if news_data else []
+    except Exception as e:
+        print(f"News fetch error for {ticker}: {e}")
+        return []
 
 
-# ===== STOCK ANALYST FUNCTIONS =====
+def analyze_news_sentiment(ticker: str, news_articles: list) -> dict:
+    """Use GPT-4 to analyze news sentiment and extract key events"""
+    if not news_articles:
+        return {"sentiment": "neutral", "sentiment_score": 0, "key_headlines": [], "analysis": "No recent news available."}
+    
+    try:
+        headlines_text = "\n".join([f"{i+1}. {article.get('headline', 'N/A')}" for i, article in enumerate(news_articles[:10])])
+        
+        gpt_response = client.chat.completions.create(
+            model="gpt-4o",
+            messages=[{"role": "user", "content": f"""Analyze these recent news headlines for {ticker} and provide:
+
+{headlines_text}
+
+Provide:
+1. Overall sentiment (BULLISH / BEARISH / NEUTRAL)
+2. Sentiment score (-10 to +10, where -10 is extremely bearish, +10 is extremely bullish)
+3. Top 3 most important headlines (list them)
+4. Brief analysis (2-3 sentences) of what's happening with this company
+
+Format your response as:
+SENTIMENT: [BULLISH/BEARISH/NEUTRAL]
+SCORE: [number]
+KEY HEADLINES:
+- [headline 1]
+- [headline 2]
+- [headline 3]
+ANALYSIS: [your analysis]"""}],
+            max_tokens=400
+        )
+        
+        analysis_text = gpt_response.choices[0].message.content
+        
+        sentiment = "neutral"
+        if "SENTIMENT: BULLISH" in analysis_text:
+            sentiment = "bullish"
+        elif "SENTIMENT: BEARISH" in analysis_text:
+            sentiment = "bearish"
+        
+        sentiment_score = 0
+        try:
+            score_line = [line for line in analysis_text.split('\n') if 'SCORE:' in line][0]
+            sentiment_score = int(score_line.split('SCORE:')[1].strip().split()[0])
+        except:
+            pass
+        
+        key_headlines = []
+        try:
+            headlines_section = analysis_text.split('KEY HEADLINES:')[1].split('ANALYSIS:')[0]
+            key_headlines = [line.strip('- ').strip() for line in headlines_section.split('\n') if line.strip().startswith('-')]
+        except:
+            key_headlines = [article.get('headline', 'N/A') for article in news_articles[:3]]
+        
+        analysis_summary = "Recent news analyzed."
+        try:
+            analysis_summary = analysis_text.split('ANALYSIS:')[1].strip()
+        except:
+            pass
+        
+        return {
+            "sentiment": sentiment,
+            "sentiment_score": sentiment_score,
+            "key_headlines": key_headlines[:3],
+            "analysis": analysis_summary
+        }
+    except Exception as e:
+        print(f"News sentiment analysis error: {e}")
+        return {"sentiment": "neutral", "sentiment_score": 0, "key_headlines": [], "analysis": "Unable to analyze news sentiment."}
+
+
+# ===== STOCK FUNCTIONS (ROBUST VERSIONS) =====
 
 def get_stock_data(ticker: str) -> dict:
-    """Fetch stock price, volume, and market data using yfinance"""
+    """Fetch stock price, volume, and market data using yfinance (ROBUST VERSION)"""
     try:
         stock = yf.Ticker(ticker)
-        info = stock.info
-        hist = stock.history(period="1d")
+        hist = stock.history(period="5d")
         
-        if hist.empty:
+        if hist.empty or len(hist) == 0:
+            print(f"No history data for {ticker}")
             return None
         
         current_price = hist['Close'].iloc[-1]
         volume = hist['Volume'].iloc[-1]
         
+        try:
+            info = stock.info
+            name = info.get("longName") or info.get("shortName") or ticker
+            market_cap = info.get("marketCap", 0) or 0
+            sector = info.get("sector", "Unknown") or "Unknown"
+            industry = info.get("industry", "Unknown") or "Unknown"
+        except Exception as info_error:
+            print(f"Info fetch partial failure for {ticker}, using defaults: {info_error}")
+            name = ticker
+            market_cap = 0
+            sector = "Technology"
+            industry = "Unknown"
+        
+        print(f"Successfully fetched data for {ticker}: ${current_price:.2f}")
+        
         return {
             "price": float(current_price),
             "volume": float(volume),
-            "market_cap": info.get("marketCap", 0),
-            "name": info.get("longName", ticker),
-            "sector": info.get("sector", "Unknown"),
-            "industry": info.get("industry", "Unknown")
+            "market_cap": market_cap,
+            "name": name,
+            "sector": sector,
+            "industry": industry
         }
     except Exception as e:
         print(f"Stock data error for {ticker}: {e}")
@@ -692,35 +973,39 @@ def get_stock_data(ticker: str) -> dict:
 
 
 def get_stock_fundamentals(ticker: str) -> dict:
-    """Fetch stock fundamentals (P/E, EPS, revenue, debt)"""
+    """Fetch stock fundamentals (P/E, EPS, revenue, debt) - ROBUST VERSION"""
     try:
         stock = yf.Ticker(ticker)
         info = stock.info
         
         return {
-            "pe_ratio": info.get("trailingPE", 0),
-            "forward_pe": info.get("forwardPE", 0),
-            "eps": info.get("trailingEps", 0),
-            "revenue_growth": info.get("revenueGrowth", 0),
-            "profit_margin": info.get("profitMargins", 0),
-            "debt_to_equity": info.get("debtToEquity", 0),
-            "return_on_equity": info.get("returnOnEquity", 0),
-            "analyst_rating": info.get("recommendationKey", "none"),
-            "target_price": info.get("targetMeanPrice", 0)
+            "pe_ratio": info.get("trailingPE") or info.get("forwardPE") or 0,
+            "forward_pe": info.get("forwardPE", 0) or 0,
+            "eps": info.get("trailingEps", 0) or 0,
+            "revenue_growth": info.get("revenueGrowth", 0) or 0,
+            "profit_margin": info.get("profitMargins", 0) or 0,
+            "debt_to_equity": info.get("debtToEquity", 0) or 0,
+            "return_on_equity": info.get("returnOnEquity", 0) or 0,
+            "analyst_rating": info.get("recommendationKey", "none") or "none",
+            "target_price": info.get("targetMeanPrice", 0) or 0
         }
     except Exception as e:
         print(f"Fundamentals error for {ticker}: {e}")
-        return {}
+        return {
+            "pe_ratio": 0, "forward_pe": 0, "eps": 0, "revenue_growth": 0,
+            "profit_margin": 0, "debt_to_equity": 0, "return_on_equity": 0,
+            "analyst_rating": "none", "target_price": 0
+        }
 
 
 def get_stock_technicals(ticker: str) -> dict:
-    """Calculate technical indicators (RSI, moving averages)"""
+    """Calculate technical indicators (RSI, moving averages) - ROBUST VERSION"""
     try:
         stock = yf.Ticker(ticker)
         hist = stock.history(period="3mo")
         
         if len(hist) < 14:
-            return {}
+            return {"rsi": 50, "ma_50": 0, "ma_200": 0, "price_vs_ma50": 0, "price_vs_ma200": 0}
         
         delta = hist['Close'].diff()
         gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
@@ -729,7 +1014,7 @@ def get_stock_technicals(ticker: str) -> dict:
         rsi = 100 - (100 / (1 + rs))
         current_rsi = rsi.iloc[-1]
         
-        ma_50 = hist['Close'].rolling(window=50).mean().iloc[-1]
+        ma_50 = hist['Close'].rolling(window=min(50, len(hist))).mean().iloc[-1]
         ma_200 = hist['Close'].rolling(window=min(200, len(hist))).mean().iloc[-1]
         current_price = hist['Close'].iloc[-1]
         
@@ -742,11 +1027,11 @@ def get_stock_technicals(ticker: str) -> dict:
         }
     except Exception as e:
         print(f"Technicals error for {ticker}: {e}")
-        return {}
+        return {"rsi": 50, "ma_50": 0, "ma_200": 0, "price_vs_ma50": 0, "price_vs_ma200": 0}
 
 
 def stock_risk_gate(fundamentals: dict, technicals: dict, stock_data: dict) -> tuple:
-    """Evaluate stock risk based on fundamentals and technicals (FIXED: context-aware debt)"""
+    """Evaluate stock risk (FIXED: context-aware debt)"""
     reasons = []
     high_risk = False
     
@@ -756,7 +1041,6 @@ def stock_risk_gate(fundamentals: dict, technicals: dict, stock_data: dict) -> t
     profit_margin = fundamentals.get("profit_margin", 0)
     rsi = technicals.get("rsi", 50)
     
-    # P/E ratio checks (lenient for growth stocks)
     if pe_ratio < 0:
         high_risk = True
         reasons.append("🚨 Negative earnings — company is losing money")
@@ -768,14 +1052,12 @@ def stock_risk_gate(fundamentals: dict, technicals: dict, stock_data: dict) -> t
     elif pe_ratio > 50:
         reasons.append(f"⚠️ High P/E ratio ({pe_ratio:.1f}) — premium valuation")
     
-    # Revenue growth checks
     if revenue_growth < -0.3:
         high_risk = True
         reasons.append(f"🚨 Revenue declining by {abs(revenue_growth)*100:.1f}% — serious trouble")
     elif revenue_growth < -0.1:
         reasons.append(f"⚠️ Revenue declining by {abs(revenue_growth)*100:.1f}% — watch carefully")
     
-    # Debt checks (FIXED: context-aware, only flag if combined with weak fundamentals)
     if debt_to_equity > 10 and (revenue_growth < 0 or profit_margin < 0):
         high_risk = True
         reasons.append(f"🚨 Very high debt-to-equity ({debt_to_equity:.2f}) with weak fundamentals — dangerous")
@@ -787,29 +1069,25 @@ def stock_risk_gate(fundamentals: dict, technicals: dict, stock_data: dict) -> t
     elif debt_to_equity > 3:
         reasons.append(f"⚠️ Elevated debt-to-equity ({debt_to_equity:.2f})")
     
-    # Profitability checks (only flag if deeply negative)
     if profit_margin < -0.2:
         high_risk = True
         reasons.append(f"🚨 Large negative profit margin ({profit_margin*100:.1f}%) — burning cash rapidly")
     elif profit_margin < -0.05:
         reasons.append(f"⚠️ Negative profit margin ({profit_margin*100:.1f}%) — not yet profitable")
     
-    # Technical checks
     if rsi > 85:
         reasons.append(f"⚠️ RSI extremely overbought ({rsi:.1f}) — possible pullback")
     elif rsi < 15:
         reasons.append(f"✅ RSI extremely oversold ({rsi:.1f}) — possible bounce opportunity")
     
     return high_risk, reasons
-
-
 def predict_stock_trend(ticker: str, stock_data: dict, fundamentals: dict, technicals: dict, news_sentiment: dict = None) -> dict:
     """Predict stock trend based on fundamentals, technicals, and news"""
     price = stock_data["price"]
     high_risk, reasons = stock_risk_gate(fundamentals, technicals, stock_data)
     
     if high_risk:
-        reasoning = f"""🔴 INVESTMENT SCORE: 0/17
+        reasoning = f"""🔴 INVESTMENT SCORE: 0/20
 
 🚨 PREDICTION: AVOID THIS STOCK
 ⚠️ CONFIDENCE: HIGH RISK
@@ -830,7 +1108,6 @@ def predict_stock_trend(ticker: str, stock_data: dict, fundamentals: dict, techn
     score = 0
     reasoning_parts = []
     
-    # 1. Valuation
     pe_ratio = fundamentals.get("pe_ratio", 0)
     if 0 < pe_ratio < 15:
         score += 4
@@ -844,7 +1121,6 @@ def predict_stock_trend(ticker: str, stock_data: dict, fundamentals: dict, techn
     else:
         reasoning_parts.append(f"⚠️ P/E ratio ({pe_ratio:.1f}) — expensive (0)")
     
-    # 2. Growth
     revenue_growth = fundamentals.get("revenue_growth", 0) * 100
     if revenue_growth > 30:
         score += 4
@@ -858,7 +1134,6 @@ def predict_stock_trend(ticker: str, stock_data: dict, fundamentals: dict, techn
     else:
         reasoning_parts.append(f"⚠️ Low/negative revenue growth ({revenue_growth:.1f}%) (0)")
     
-    # 3. Profitability
     profit_margin = fundamentals.get("profit_margin", 0) * 100
     if profit_margin > 20:
         score += 3
@@ -872,7 +1147,6 @@ def predict_stock_trend(ticker: str, stock_data: dict, fundamentals: dict, techn
     else:
         reasoning_parts.append(f"⚠️ Low profit margin ({profit_margin:.1f}%) (0)")
     
-    # 4. Technicals
     rsi = technicals.get("rsi", 50)
     if 30 <= rsi <= 50:
         score += 3
@@ -886,7 +1160,6 @@ def predict_stock_trend(ticker: str, stock_data: dict, fundamentals: dict, techn
     else:
         reasoning_parts.append(f"⚠️ RSI extreme ({rsi:.1f}) — overbought/oversold (0)")
     
-    # 5. Debt
     debt_to_equity = fundamentals.get("debt_to_equity", 0)
     if debt_to_equity < 0.5:
         score += 2
@@ -897,7 +1170,6 @@ def predict_stock_trend(ticker: str, stock_data: dict, fundamentals: dict, techn
     else:
         reasoning_parts.append(f"⚠️ High debt-to-equity ({debt_to_equity:.2f}) (0)")
     
-    # 6. Analyst sentiment
     rating = fundamentals.get("analyst_rating", "none")
     if rating in ["strong_buy", "buy"]:
         score += 1
@@ -905,7 +1177,6 @@ def predict_stock_trend(ticker: str, stock_data: dict, fundamentals: dict, techn
     else:
         reasoning_parts.append(f"⚠️ Analyst rating: {rating.replace('_', ' ').upper()} (0)")
     
-    # 7. NEWS SENTIMENT (NEW: adds up to +3 or -3 points)
     if news_sentiment:
         sentiment = news_sentiment.get("sentiment", "neutral")
         sentiment_score = news_sentiment.get("sentiment_score", 0)
@@ -925,9 +1196,8 @@ def predict_stock_trend(ticker: str, stock_data: dict, fundamentals: dict, techn
         else:
             reasoning_parts.append(f"⚠️ News sentiment: Neutral (0)")
     
-    score = max(0, min(20, score))  # Now max is 20 with news
+    score = max(0, min(20, score))
     
-    # Determine prediction tier (adjusted for 0-20 scale)
     if score >= 17:
         prediction_text = "🔥 STRONG BUY"
         confidence_level = "VERY HIGH CONFIDENCE"
@@ -949,7 +1219,6 @@ def predict_stock_trend(ticker: str, stock_data: dict, fundamentals: dict, techn
         confidence_level = "LOW CONFIDENCE"
         target_mult = 1.0
     
-    # Determine position type (LONG vs SHORT) with news context
     if score < 4:
         position_type = "🔻 SHORT CANDIDATE"
         position_reasoning = "Weak fundamentals and negative news suggest shorting opportunity."
@@ -977,7 +1246,6 @@ def predict_stock_trend(ticker: str, stock_data: dict, fundamentals: dict, techn
     else:
         recommendation = "❌ RECOMMENDATION: Weak fundamentals, consider alternatives."
     
-    # Build reasoning with news
     news_section = ""
     if news_sentiment and news_sentiment.get("key_headlines"):
         headlines_text = "\n".join([f"• {h}" for h in news_sentiment.get("key_headlines", [])[:3]])
@@ -1012,9 +1280,20 @@ Key Headlines:
         'position_type': position_type,
         'position_reasoning': position_reasoning
     }
+
+
 @app.get("/api/predict")
-async def predict(symbol: str):
+async def predict(symbol: str, credentials: Optional[HTTPAuthorizationCredentials] = Depends(HTTPBearer(auto_error=False)), db: Session = Depends(get_db)):
+    """Crypto prediction endpoint (saves to history if logged in)"""
     try:
+        # Get current user if authenticated
+        current_user = None
+        if credentials:
+            try:
+                current_user = get_current_user(credentials, db)
+            except:
+                pass
+        
         search_url = f"https://api.dexscreener.com/latest/dex/search?q={symbol}"
         response = requests.get(search_url, timeout=10)
         
@@ -1035,6 +1314,20 @@ async def predict(symbol: str):
                 creator_history = get_creator_history(creator_addr)
                 
                 result = predict_trend(price, volume24h, liquidity, token_address, holder_metrics, creator_history)
+                
+                # Save to user history if logged in
+                if current_user:
+                    save_analysis_to_history(
+                        user=current_user,
+                        analysis_type="crypto",
+                        symbol=token_symbol,
+                        name=token_name,
+                        price=price,
+                        prediction=result['prediction'],
+                        confidence=result['confidence'],
+                        db=db
+                    )
+                
                 send_discord_notification(token_symbol, token_name, price, result['prediction'], volume24h, liquidity)
                 
                 return {
@@ -1052,9 +1345,74 @@ async def predict(symbol: str):
                 }
         
         raise HTTPException(status_code=404, detail="Token not found on any exchange")
-    
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error: {str(e)}")
+
+
+@app.get("/api/predict-stock")
+async def predict_stock(ticker: str, credentials: Optional[HTTPAuthorizationCredentials] = Depends(HTTPBearer(auto_error=False)), db: Session = Depends(get_db)):
+    """Stock prediction endpoint with news (saves to history if logged in)"""
+    try:
+        # Get current user if authenticated
+        current_user = None
+        if credentials:
+            try:
+                current_user = get_current_user(credentials, db)
+            except:
+                pass
+        
+        ticker = ticker.upper().strip()
+        
+        stock_data = get_stock_data(ticker)
+        if not stock_data:
+            raise HTTPException(status_code=404, detail="Stock not found")
+        
+        fundamentals = get_stock_fundamentals(ticker)
+        technicals = get_stock_technicals(ticker)
+        news_articles = get_stock_news(ticker)
+        news_sentiment = analyze_news_sentiment(ticker, news_articles)
+        
+        result = predict_stock_trend(ticker, stock_data, fundamentals, technicals, news_sentiment)
+        
+        # Save to user history if logged in
+        if current_user:
+            save_analysis_to_history(
+                user=current_user,
+                analysis_type="stock",
+                symbol=ticker,
+                name=stock_data['name'],
+                price=stock_data['price'],
+                prediction=result['prediction'],
+                confidence=result['confidence'],
+                position_type=result['position_type'],
+                db=db
+            )
+        
+        send_stock_discord_notification(ticker, stock_data['name'], stock_data['price'], 
+                                        result['prediction'], stock_data['sector'], result['position_type'])
+        
+        return {
+            'ticker': ticker,
+            'name': stock_data['name'],
+            'price': stock_data['price'],
+            'volume': stock_data['volume'],
+            'market_cap': stock_data['market_cap'],
+            'sector': stock_data['sector'],
+            'prediction': result['prediction'],
+            'confidence': result['confidence'],
+            'reasoning': result['reasoning'],
+            'target_price': result['target_price'],
+            'stop_loss': result['stop_loss'],
+            'position_type': result['position_type'],
+            'position_reasoning': result['position_reasoning'],
+            'fundamentals': fundamentals,
+            'technicals': technicals,
+            'news_sentiment': news_sentiment
+        }
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error analyzing stock: {str(e)}")
 
 
 @app.get("/api/latest-tokens")
@@ -1069,6 +1427,34 @@ async def get_latest_tokens():
         return {"tokens": trending}
     except Exception as e:
         return {"tokens": [], "error": str(e)}
+
+
+@app.get("/api/trending-stocks")
+async def get_trending_stocks():
+    try:
+        trending = [
+            {"ticker": "AAPL", "name": "Apple"},
+            {"ticker": "TSLA", "name": "Tesla"},
+            {"ticker": "NVDA", "name": "NVIDIA"},
+            {"ticker": "MSFT", "name": "Microsoft"},
+            {"ticker": "GOOGL", "name": "Google"},
+            {"ticker": "AMZN", "name": "Amazon"}
+        ]
+        
+        results = []
+        for stock in trending:
+            try:
+                ticker_obj = yf.Ticker(stock['ticker'])
+                hist = ticker_obj.history(period="1d")
+                if not hist.empty:
+                    price = hist['Close'].iloc[-1]
+                    results.append({'ticker': stock['ticker'], 'name': stock['name'], 'price': f"${price:.2f}"})
+            except:
+                continue
+        
+        return {'stocks': results}
+    except Exception as e:
+        return {'stocks': []}
 
 
 @app.get("/api/history")
@@ -1151,149 +1537,20 @@ async def get_history(symbol: str):
             last_price = future_price
         
         all_prices = [p['price'] for p in history] + [p['price'] for p in future]
-        
-        return {
-            'history': history,
-            'future': future,
-            'high_prediction': max(all_prices),
-            'low_prediction': min(all_prices)
-        }
-    
+        return {'history': history, 'future': future, 'high_prediction': max(all_prices), 'low_prediction': min(all_prices)}
     except Exception as e:
-        print(f"Chart generation error: {str(e)}")
         current_time = datetime.now()
         fallback_price = 0.0001
-        
         return {
-            'history': [{'time': (current_time - timedelta(hours=i)).isoformat(),
-                        'price': fallback_price * random.uniform(0.95, 1.05)}
-                       for i in range(10, 0, -1)],
-            'future': [{'time': (current_time + timedelta(hours=i)).isoformat(),
-                       'price': fallback_price * (1 + random.uniform(-0.02, 0.02) * i)}
-                      for i in range(1, 5)],
+            'history': [{'time': (current_time - timedelta(hours=i)).isoformat(), 'price': fallback_price * random.uniform(0.95, 1.05)} for i in range(10, 0, -1)],
+            'future': [{'time': (current_time + timedelta(hours=i)).isoformat(), 'price': fallback_price * (1 + random.uniform(-0.02, 0.02) * i)} for i in range(1, 5)],
             'high_prediction': fallback_price * 1.1,
             'low_prediction': fallback_price * 0.95
         }
 
 
-@app.get("/api/token-info")
-async def get_token_info(symbol: str):
-    try:
-        search_url = f"https://api.dexscreener.com/latest/dex/search?q={symbol}"
-        response = requests.get(search_url, timeout=10)
-        
-        if response.status_code == 200:
-            data = response.json()
-            if data.get('pairs'):
-                pair = data['pairs'][0]
-                return {
-                    'symbol': pair.get('baseToken', {}).get('symbol', symbol),
-                    'name': pair.get('baseToken', {}).get('name', 'Unknown'),
-                    'address': pair.get('baseToken', {}).get('address', symbol),
-                    'price': float(pair.get('priceUsd', 0)),
-                    'volume24h': float(pair.get('volume', {}).get('h24', 0)),
-                    'liquidity': float(pair.get('liquidity', {}).get('usd', 0))
-                }
-        
-        raise HTTPException(status_code=404, detail="Token not found")
-    
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error: {str(e)}")
-
-
-@app.get("/api/solana-price")
-async def get_solana_price():
-    try:
-        response = requests.get(
-            'https://api.coingecko.com/api/v3/simple/price',
-            params={'ids': 'solana', 'vs_currencies': 'usd', 'include_24hr_change': 'true'},
-            timeout=10,
-            headers={'User-Agent': 'Mozilla/5.0'}
-        )
-        if response.status_code == 200:
-            data = response.json()
-            if 'solana' in data:
-                return {'price': data['solana']['usd'], 'change_24h': data['solana'].get('usd_24h_change', 0)}
-        
-        dex_response = requests.get('https://api.dexscreener.com/latest/dex/tokens/So11111111111111111111111111111111111111112', timeout=10)
-        if dex_response.status_code == 200:
-            dex_data = dex_response.json()
-            if dex_data.get('pairs'):
-                pair = dex_data['pairs'][0]
-                price = float(pair.get('priceUsd', 0))
-                change = float(pair.get('priceChange', {}).get('h24', 0))
-                if price > 0:
-                    return {'price': price, 'change_24h': change}
-        
-        binance_response = requests.get('https://api.binance.com/api/v3/ticker/24hr?symbol=SOLUSDT', timeout=10)
-        if binance_response.status_code == 200:
-            binance_data = binance_response.json()
-            return {'price': float(binance_data['lastPrice']), 'change_24h': float(binance_data['priceChangePercent'])}
-        
-        return {'error': 'Failed to fetch price from all sources'}
-    
-    except Exception as e:
-        print(f"Solana price error: {str(e)}")
-        return {'error': str(e)}
-
-
-@app.get("/api/predict-stock")
-async def predict_stock(ticker: str):
-    """Stock prediction endpoint with news analysis"""
-    try:
-        ticker = ticker.upper().strip()
-        
-        stock_data = get_stock_data(ticker)
-        if not stock_data:
-            raise HTTPException(status_code=404, detail="Stock not found")
-        
-        fundamentals = get_stock_fundamentals(ticker)
-        technicals = get_stock_technicals(ticker)
-        
-        # Fetch and analyze news
-        news_articles = get_stock_news(ticker)
-        news_sentiment = analyze_news_sentiment(ticker, news_articles)
-        
-        result = predict_stock_trend(ticker, stock_data, fundamentals, technicals, news_sentiment)
-        
-        # Send Discord notification
-        send_stock_discord_notification(
-            ticker=ticker,
-            company_name=stock_data['name'],
-            price=stock_data['price'],
-            prediction=result['prediction'],
-            sector=stock_data['sector'],
-            position_type=result['position_type']
-        )
-        
-        return {
-            'ticker': ticker,
-            'name': stock_data['name'],
-            'price': stock_data['price'],
-            'volume': stock_data['volume'],
-            'market_cap': stock_data['market_cap'],
-            'sector': stock_data['sector'],
-            'prediction': result['prediction'],
-            'confidence': result['confidence'],
-            'reasoning': result['reasoning'],
-            'target_price': result['target_price'],
-            'stop_loss': result['stop_loss'],
-            'position_type': result['position_type'],
-            'position_reasoning': result['position_reasoning'],
-            'fundamentals': fundamentals,
-            'technicals': technicals,
-            'news_sentiment': news_sentiment
-        }
-    
-    except HTTPException as he:
-        raise he
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error analyzing stock: {str(e)}")
-
-
 @app.get("/api/stock-history")
 async def get_stock_history(ticker: str):
-    """Get stock price history and predictions"""
     try:
         ticker = ticker.upper().strip()
         stock = yf.Ticker(ticker)
@@ -1303,7 +1560,6 @@ async def get_stock_history(ticker: str):
             raise HTTPException(status_code=404, detail="Stock not found")
         
         current_price = hist['Close'].iloc[-1]
-        
         stock_data = get_stock_data(ticker)
         fundamentals = get_stock_fundamentals(ticker)
         technicals = get_stock_technicals(ticker)
@@ -1356,24 +1612,53 @@ async def get_stock_history(ticker: str):
             last_price = future_price
         
         all_prices = [p['price'] for p in history] + [p['price'] for p in future]
-        
-        return {
-            'history': history,
-            'future': future,
-            'high_prediction': max(all_prices),
-            'low_prediction': min(all_prices)
-        }
-    
-    except HTTPException as he:
-        raise he
+        return {'history': history, 'future': future, 'high_prediction': max(all_prices), 'low_prediction': min(all_prices)}
     except Exception as e:
-        print(f"Stock history error: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error: {str(e)}")
+
+
+@app.get("/api/token-info")
+async def get_token_info(symbol: str):
+    try:
+        search_url = f"https://api.dexscreener.com/latest/dex/search?q={symbol}"
+        response = requests.get(search_url, timeout=10)
+        
+        if response.status_code == 200:
+            data = response.json()
+            if data.get('pairs'):
+                pair = data['pairs'][0]
+                return {
+                    'symbol': pair.get('baseToken', {}).get('symbol', symbol),
+                    'name': pair.get('baseToken', {}).get('name', 'Unknown'),
+                    'address': pair.get('baseToken', {}).get('address', symbol),
+                    'price': float(pair.get('priceUsd', 0)),
+                    'volume24h': float(pair.get('volume', {}).get('h24', 0)),
+                    'liquidity': float(pair.get('liquidity', {}).get('usd', 0))
+                }
+        
+        raise HTTPException(status_code=404, detail="Token not found")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error: {str(e)}")
+
+
+@app.get("/api/solana-price")
+async def get_solana_price():
+    try:
+        response = requests.get('https://api.coingecko.com/api/v3/simple/price',
+            params={'ids': 'solana', 'vs_currencies': 'usd', 'include_24hr_change': 'true'},
+            timeout=10, headers={'User-Agent': 'Mozilla/5.0'})
+        if response.status_code == 200:
+            data = response.json()
+            if 'solana' in data:
+                return {'price': data['solana']['usd'], 'change_24h': data['solana'].get('usd_24h_change', 0)}
+        
+        return {'error': 'Failed to fetch price'}
+    except Exception as e:
+        return {'error': str(e)}
 
 
 @app.get("/api/market-indices")
 async def get_market_indices():
-    """Get major market indices (S&P 500, NASDAQ, Dow Jones)"""
     try:
         indices = {"^GSPC": "S&P 500", "^IXIC": "NASDAQ", "^DJI": "Dow Jones"}
         results = []
@@ -1388,46 +1673,12 @@ async def get_market_indices():
                     prev_price = hist['Close'].iloc[-2]
                     change = ((current_price - prev_price) / prev_price) * 100
                     results.append({'name': name, 'price': float(current_price), 'change': float(change)})
-            except Exception as e:
-                print(f"Error fetching {name}: {e}")
-                continue
-        
-        return {'indices': results}
-    
-    except Exception as e:
-        print(f"Market indices error: {str(e)}")
-        return {'indices': []}
-
-
-@app.get("/api/trending-stocks")
-async def get_trending_stocks():
-    """Get trending/popular stocks"""
-    try:
-        trending = [
-            {"ticker": "AAPL", "name": "Apple"},
-            {"ticker": "TSLA", "name": "Tesla"},
-            {"ticker": "NVDA", "name": "NVIDIA"},
-            {"ticker": "MSFT", "name": "Microsoft"},
-            {"ticker": "GOOGL", "name": "Google"},
-            {"ticker": "AMZN", "name": "Amazon"}
-        ]
-        
-        results = []
-        for stock in trending:
-            try:
-                ticker_obj = yf.Ticker(stock['ticker'])
-                hist = ticker_obj.history(period="1d")
-                if not hist.empty:
-                    price = hist['Close'].iloc[-1]
-                    results.append({'ticker': stock['ticker'], 'name': stock['name'], 'price': f"${price:.2f}"})
             except:
                 continue
         
-        return {'stocks': results}
-    
+        return {'indices': results}
     except Exception as e:
-        print(f"Trending stocks error: {str(e)}")
-        return {'stocks': []}
+        return {'indices': []}
 
 
 if __name__ == "__main__":
