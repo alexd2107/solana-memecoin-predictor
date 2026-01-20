@@ -618,7 +618,7 @@
                 return;
             }
 
-            const isDev = (email === 'dev@memecoinmetrics.com' && password === 'DevAccess2026!');
+            const isDev = (email === 'dev@memecoinmetrics.com' && password === 'Password');
 
             try {
                 const response = await fetch(`/api/auth/login?email=${encodeURIComponent(email)}&password=${encodeURIComponent(password)}`, {
