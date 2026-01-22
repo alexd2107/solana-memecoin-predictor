@@ -63,6 +63,7 @@
     </style>
 </head>
 <body>
+    <!-- Disclaimer Modal -->
     <div class="modal-overlay" id="disclaimerModal">
         <div class="modal-content">
             <h2>⚠️ Disclaimer</h2>
@@ -73,6 +74,7 @@
         </div>
     </div>
 
+    <!-- Auth Modal -->
     <div class="modal-overlay active" id="authModal">
         <div class="modal-content">
             <h2 id="authTitle">Login to Continue</h2>
@@ -95,6 +97,7 @@
         </div>
     </div>
 
+    <!-- Stats Modal -->
     <div class="modal-overlay" id="statsModal">
         <div class="modal-content" style="max-width: 800px;">
             <h2 id="statsModalTitle">📊 Your Stats</h2>
@@ -103,6 +106,7 @@
         </div>
     </div>
 
+    <!-- Top Price Bar -->
     <div class="price-bar">
         <div style="width: 250px;"></div>
         <div class="price-bar-center">
@@ -137,7 +141,9 @@
         </div>
     </div>
 
+    <!-- Main Layout -->
     <div class="two-column-layout">
+        <!-- Crypto Column -->
         <div class="column crypto-column">
             <h1>🪙 Crypto Analyst</h1>
             <div class="search-bar">
@@ -154,12 +160,12 @@
             
             <div id="cryptoShortTermContainer" class="chart-container">
                 <div class="chart-title">📈 Short-Term (1 Hour Prediction)</div>
-                anvas id="cryptoShortTermChart"></canvas>
+                <canvas id="cryptoShortTermChart"></canvas>
             </div>
             
             <div id="cryptoLongTermContainer" class="chart-container">
                 <div class="chart-title">📊 Long-Term (24 Hour Prediction)</div>
-                anvas id="cryptoLongTermChart"></canvas>
+                <canvas id="cryptoLongTermChart"></canvas>
             </div>
             
             <div id="cryptoHistorySection" class="history-section">
@@ -168,6 +174,7 @@
             </div>
         </div>
 
+        <!-- Stock Column -->
         <div class="column stock-column">
             <h1>📈 Stock Analyst</h1>
             <div class="search-bar">
@@ -184,12 +191,12 @@
             
             <div id="stockShortTermContainer" class="chart-container">
                 <div class="chart-title">📈 Short-Term Prediction</div>
-                anvas id="stockShortTermChart"></canvas>
+                <canvas id="stockShortTermChart"></canvas>
             </div>
             
             <div id="stockLongTermContainer" class="chart-container">
                 <div class="chart-title">📊 Long-Term Prediction</div>
-                anvas id="stockLongTermChart"></canvas>
+                <canvas id="stockLongTermChart"></canvas>
             </div>
             
             <div id="stockHistorySection" class="history-section">
@@ -251,16 +258,23 @@
             const isDev = (email === 'dev@memecoinmetrics.com' && password === 'Password');
             
             try {
-                const response = await fetch(`/api/auth/login?email=${encodeURIComponent(email)}&password=${encodeURIComponent(password)}`, {
-                    method: 'POST'
-                });
-                
-                const data = await response.json();
-                
-                if (response.ok || isDev) {
+                let data = null;
+                let ok = false;
+
+                if (!isDev) {
+                    const response = await fetch('/api/auth/login', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ email, password })
+                    });
+                    data = await response.json();
+                    ok = response.ok;
+                }
+
+                if (isDev || ok) {
                     if (isDev) {
                         authToken = 'dev-mode-token';
-                        currentUser = { email: email, username: 'Developer', wallet_address: null, is_dev: true };
+                        currentUser = { email, username: 'Developer', wallet_address: null, is_dev: true };
                         alert('🔓 Developer Mode Activated');
                     } else {
                         authToken = data.access_token;
@@ -279,7 +293,7 @@
                         document.getElementById('disclaimerModal').classList.add('active');
                     }
                 } else {
-                    alert(data.detail || 'Login failed');
+                    alert((data && data.detail) || 'Login failed');
                 }
             } catch (err) {
                 alert('Login error. Please try again.');
@@ -297,8 +311,10 @@
             }
             
             try {
-                const response = await fetch(`/api/auth/signup?email=${encodeURIComponent(email)}&username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}`, {
-                    method: 'POST'
+                const response = await fetch('/api/auth/signup', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, username, password })
                 });
                 
                 const data = await response.json();
@@ -807,10 +823,9 @@
             }
         }
         
+        // Simplified analyzeCrypto using existing /api/predict
         async function analyzeCrypto() {
             let symbol = document.getElementById("cryptoSymbol").value.trim().toUpperCase();
-            
-            // If user pasted a Solana contract address, convert it to a symbol if you have a map
             if (symbolToAddress && symbolToAddress[symbol]) {
                 symbol = symbolToAddress[symbol];
             }
@@ -820,62 +835,40 @@
                 return;
             }
 
-            document.getElementById("cryptoResultSection").style.display = "none";
-            document.getElementById("cryptoLoading").style.display = "block";
+            const resultEl = document.getElementById("cryptoResult");
+            resultEl.style.display = "block";
+            resultEl.textContent = "Loading...";
 
             try {
-                const response = await fetch("/api/analyze/crypto", {
-                    method: "POST",
-                    headers: {
-                        "Content-Type": "application/json",
-                        ...getAuthHeaders()
-                    },
-                    body: JSON.stringify({ symbol })
+                const response = await fetch(`/api/predict?symbol=${encodeURIComponent(symbol)}`, {
+                    headers: getAuthHeaders()
                 });
-
                 const data = await response.json();
-                document.getElementById("cryptoLoading").style.display = "none";
 
                 if (!response.ok) {
-                    alert(data.error || "Failed to analyze crypto");
+                    alert(data.detail || "Failed to analyze crypto");
+                    resultEl.textContent = "";
                     return;
                 }
 
-                // Basic info
-                document.getElementById("cryptoName").textContent = data.name || symbol;
-                document.getElementById("cryptoSymbolDisplay").textContent = symbol;
-                document.getElementById("cryptoPrice").textContent = data.price ? `$${data.price.toFixed(6)}` : "N/A";
+                resultEl.textContent =
+                    `${data.name} (${data.symbol})\n` +
+                    `Price: $${data.price}\n` +
+                    `Prediction: ${data.prediction}\n\n` +
+                    `${data.reasoning}`;
 
-                // Prediction / rating
-                const predictionEl = document.getElementById("cryptoPrediction");
-                predictionEl.textContent = data.prediction || "No prediction";
-                predictionEl.style.color = data.prediction && data.prediction.includes("AVOID")
-                    ? "#ff6b6b"
-                    : "#65e261";
-
-                // Risk, liquidity, etc.
-                document.getElementById("cryptoRisk").textContent = data.risk_level || "Unknown";
-                document.getElementById("cryptoMarketCap").textContent = data.market_cap || "N/A";
-                document.getElementById("cryptoLiquidity").textContent = data.liquidity || "N/A";
-
-                // Narrative / AI breakdown
-                document.getElementById("cryptoSummary").textContent = data.summary || "No summary available.";
-
-                // Show charts
-                if (data.symbol_for_history) {
-                    await showCryptoCharts(data.symbol_for_history);
-                } else {
-                    await showCryptoCharts(symbol);
+                // Optional: show charts if your /api/history is wired
+                if (data.symbol) {
+                    showCryptoCharts(data.symbol);
                 }
-
-                document.getElementById("cryptoResultSection").style.display = "block";
             } catch (err) {
                 console.error(err);
-                document.getElementById("cryptoLoading").style.display = "none";
                 alert("Error analyzing crypto");
+                resultEl.textContent = "";
             }
         }
 
+        // Simplified analyzeStock using existing /api/predict-stock
         async function analyzeStock() {
             const ticker = document.getElementById("stockTicker").value.trim().toUpperCase();
             if (!ticker) {
@@ -883,52 +876,34 @@
                 return;
             }
 
-            document.getElementById("stockResultSection").style.display = "none";
-            document.getElementById("stockLoading").style.display = "block";
+            const resultEl = document.getElementById("stockResult");
+            resultEl.style.display = "block";
+            resultEl.textContent = "Loading...";
 
             try {
-                const response = await fetch("/api/analyze/stock", {
-                    method: "POST",
-                    headers: {
-                        "Content-Type": "application/json",
-                        ...getAuthHeaders()
-                    },
-                    body: JSON.stringify({ ticker })
+                const response = await fetch(`/api/predict-stock?ticker=${encodeURIComponent(ticker)}`, {
+                    headers: getAuthHeaders()
                 });
-
                 const data = await response.json();
-                document.getElementById("stockLoading").style.display = "none";
 
                 if (!response.ok) {
-                    alert(data.error || "Failed to analyze stock");
+                    alert(data.detail || "Failed to analyze stock");
+                    resultEl.textContent = "";
                     return;
                 }
 
-                // Basic info
-                document.getElementById("stockName").textContent = data.name || ticker;
-                document.getElementById("stockTickerDisplay").textContent = ticker;
-                document.getElementById("stockPrice").textContent = data.price ? `$${data.price.toFixed(2)}` : "N/A";
+                resultEl.textContent =
+                    `${data.name} (${data.ticker})\n` +
+                    `Price: $${data.price}\n` +
+                    `Prediction: ${data.prediction}\n` +
+                    `Position: ${data.position_type}\n\n` +
+                    `${data.reasoning}`;
 
-                // Prediction / rating
-                const predictionEl = document.getElementById("stockPrediction");
-                predictionEl.textContent = data.prediction || "No prediction";
-                predictionEl.style.color = data.prediction && data.prediction.includes("AVOID")
-                    ? "#ff6b6b"
-                    : "#65e261";
-
-                // Fundamentals / metrics
-                document.getElementById("stockSummary").textContent = data.summary || "No summary available.";
-                document.getElementById("stockSector").textContent = data.sector || "N/A";
-                document.getElementById("stockMarketCap").textContent = data.market_cap || "N/A";
-
-                // If you have a similar history endpoint for stocks, call it here (optional)
-                // await showStockCharts(ticker);
-
-                document.getElementById("stockResultSection").style.display = "block";
+                // If you add a stock history endpoint later, you can call showStockCharts here
             } catch (err) {
                 console.error(err);
-                document.getElementById("stockLoading").style.display = "none";
                 alert("Error analyzing stock");
+                resultEl.textContent = "";
             }
         }
 
@@ -938,7 +913,9 @@
         loadCryptoTrending();
         loadStockTrending();
 
-        // Optionally refresh some widgets periodically
         setInterval(loadSolanaPrice, 60_000);
         setInterval(loadCryptoTrending, 90_000);
         setInterval(loadStockTrending, 120_000);
+    </script>
+</body>
+</html>
