@@ -150,6 +150,7 @@ def get_current_user_optional(credentials: Optional[HTTPAuthorizationCredentials
         return get_current_user(credentials, db)
     except HTTPException:
         return None
+
 # AUTH ENDPOINTS
 
 @app.post("/api/auth/signup")
@@ -397,7 +398,8 @@ def save_analysis_to_history(user: Optional[User], analysis_type: str, symbol: s
     except Exception as e:
         print(f"Failed to save analysis to history: {e}")
         db.rollback()
-# CRYPTO FUNCTIONS
+
+# ======================= CRYPTO FUNCTIONS =======================
 
 def get_token_onchain_info(mint_address: str) -> dict:
     url = "https://pro-api.solscan.io/v2.0/token/holdersv2"
@@ -585,58 +587,6 @@ def send_discord_notification(symbol: str, token_name: Optional[str] = None, pri
         requests.post(DISCORD_WEBHOOK_CRYPTO, json=payload, timeout=5)
     except Exception as e:
         print(f"Discord crypto notification failed: {e}")
-
-
-def send_stock_discord_notification(ticker: str, company_name: Optional[str] = None, price: Optional[float] = None,
-                                    prediction: Optional[str] = None, sector: Optional[str] = None,
-                                    position_type: Optional[str] = None):
-    try:
-        color = 5814783
-        if prediction and "STRONG BUY" in prediction:
-            color = 5763719
-        elif prediction and "BUY" in prediction:
-            color = 5763719
-        elif prediction and "HOLD" in prediction:
-            color = 16776960
-        elif prediction and "AVOID" in prediction:
-            color = 15548997
-        
-        embed = {
-            "title": "📊 New Stock Search",
-            "color": color,
-            "fields": [
-                {"name": "📈 Ticker", "value": ticker, "inline": True},
-                {"name": "🕒 Time", "value": datetime.now().strftime("%Y-%m-%d %H:%M:%S EST"), "inline": True}
-            ],
-            "footer": {"text": "Stock Market Analyst"},
-            "timestamp": datetime.utcnow().isoformat()
-        }
-        
-        if company_name:
-            embed["fields"].insert(1, {"name": "🏢 Company", "value": company_name, "inline": False})
-        if price:
-            embed["fields"].append({"name": "💰 Price", "value": f"${price:.2f}", "inline": True})
-        if sector:
-            embed["fields"].append({"name": "🏭 Sector", "value": sector, "inline": True})
-        if prediction:
-            embed["fields"].append({"name": "🎯 Prediction", "value": prediction, "inline": False})
-        if position_type:
-            embed["fields"].append({"name": "📍 Position", "value": position_type, "inline": False})
-        
-        payload = {"embeds": [embed]}
-        requests.post(DISCORD_WEBHOOK_STOCK, json=payload, timeout=5)
-    except Exception as e:
-        print(f"Discord stock notification failed: {e}")
-
-
-@app.get("/")
-async def read_root():
-    return FileResponse('static/index.html')
-
-
-@app.get("/api")
-async def get_api():
-    return {"message": "Market Analyst API - Crypto & Stocks with Auth", "status": "running"}
 
 
 def analyze_chart_image(chart_url: str) -> str:
@@ -843,7 +793,8 @@ def predict_trend(price: float, volume24h: float, liquidity: float, mint_address
         'lowest_price': price * max_drop_mult,
         'chart_analysis': chart_analysis
     }
-# STOCK NEWS & SENTIMENT
+
+# ======================= STOCK NEWS & SENTIMENT =======================
 
 def get_stock_news(ticker: str) -> list:
     try:
@@ -926,8 +877,7 @@ ANALYSIS: [your analysis]"""}],
         print(f"News sentiment analysis error: {e}")
         return {"sentiment": "neutral", "sentiment_score": 0, "key_headlines": [], "analysis": "Unable to analyze news sentiment."}
 
-
-# STOCK FUNCTIONS
+# ======================= STOCK FUNCTIONS =======================
 
 def get_stock_data(ticker: str) -> Optional[dict]:
     try:
@@ -986,567 +936,452 @@ def get_stock_technicals(ticker: str) -> dict:
         hist = stock.history(period="3mo")
         
         if len(hist) < 14:
-            return {"rsi": 50, "ma_50": 0, "ma_200": 0, "price_vs_ma50": 0, "price_vs_ma200": 0}
+            return {"rsi": 50, "ma50": 0, "ma200": 0, "trend": "neutral"}
         
-        delta = hist['Close'].diff()
+        close_prices = hist['Close']
+        delta = close_prices.diff()
         gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
         loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
         rs = gain / loss
-        rsi = 100 - (100 / (1 + rs))
-        current_rsi = rsi.iloc[-1]
+        rsi = 100 - (100 / (1 + rs.iloc[-1])) if loss.iloc[-1] != 0 else 50
         
-        ma_50 = hist['Close'].rolling(window=min(50, len(hist))).mean().iloc[-1]
-        ma_200 = hist['Close'].rolling(window=min(200, len(hist))).mean().iloc[-1]
-        current_price = hist['Close'].iloc[-1]
+        ma50 = close_prices.rolling(window=50).mean().iloc[-1] if len(close_prices) >= 50 else close_prices.iloc[-1]
+        ma200 = close_prices.rolling(window=200).mean().iloc[-1] if len(close_prices) >= 200 else close_prices.iloc[-1]
         
-        return {
-            "rsi": float(current_rsi) if not np.isnan(current_rsi) else 50,
-            "ma_50": float(ma_50) if not np.isnan(ma_50) else current_price,
-            "ma_200": float(ma_200) if not np.isnan(ma_200) else current_price,
-            "price_vs_ma50": ((current_price - ma_50) / ma_50 * 100) if not np.isnan(ma_50) else 0,
-            "price_vs_ma200": ((current_price - ma_200) / ma_200 * 100) if not np.isnan(ma_200) else 0
-        }
+        if close_prices.iloc[-1] > ma50 and ma50 > ma200:
+            trend = "bullish"
+        elif close_prices.iloc[-1] < ma50 and ma50 < ma200:
+            trend = "bearish"
+        else:
+            trend = "neutral"
+        
+        return {"rsi": float(rsi), "ma50": float(ma50), "ma200": float(ma200), "trend": trend}
     except Exception as e:
         print(f"Technicals error for {ticker}: {e}")
-        return {"rsi": 50, "ma_50": 0, "ma_200": 0, "price_vs_ma50": 0, "price_vs_ma200": 0}
+        return {"rsi": 50, "ma50": 0, "ma200": 0, "trend": "neutral"}
 
 
-def stock_risk_gate(fundamentals: dict, technicals: dict, stock_data: dict) -> tuple:
-    reasons = []
-    high_risk = False
-    
-    pe_ratio = fundamentals.get("pe_ratio", 0)
-    revenue_growth = fundamentals.get("revenue_growth", 0)
-    debt_to_equity = fundamentals.get("debt_to_equity", 0)
-    profit_margin = fundamentals.get("profit_margin", 0)
-    rsi = technicals.get("rsi", 50)
-    
-    if pe_ratio < 0:
-        high_risk = True
-        reasons.append("🚨 Negative earnings — company is losing money")
-    elif pe_ratio > 200:
-        high_risk = True
-        reasons.append(f"🚨 Extremely high P/E ratio ({pe_ratio:.1f}) — highly overvalued")
-    elif pe_ratio > 100:
-        reasons.append(f"⚠️ Very high P/E ratio ({pe_ratio:.1f}) — growth stock or overvalued")
-    elif pe_ratio > 50:
-        reasons.append(f"⚠️ High P/E ratio ({pe_ratio:.1f}) — premium valuation")
-    
-    if revenue_growth < -0.3:
-        high_risk = True
-        reasons.append(f"🚨 Revenue declining by {abs(revenue_growth)*100:.1f}% — serious trouble")
-    elif revenue_growth < -0.1:
-        reasons.append(f"⚠️ Revenue declining by {abs(revenue_growth)*100:.1f}% — watch carefully")
-    
-    if debt_to_equity > 10 and (revenue_growth < 0 or profit_margin < 0):
-        high_risk = True
-        reasons.append(f"🚨 Very high debt-to-equity ({debt_to_equity:.2f}) with weak fundamentals — dangerous")
-    elif debt_to_equity > 5 and revenue_growth < -0.1:
-        high_risk = True
-        reasons.append(f"🚨 High debt-to-equity ({debt_to_equity:.2f}) with declining revenue — risky")
-    elif debt_to_equity > 5:
-        reasons.append(f"⚠️ High debt-to-equity ({debt_to_equity:.2f}) — acceptable if growth remains strong")
-    elif debt_to_equity > 3:
-        reasons.append(f"⚠️ Elevated debt-to-equity ({debt_to_equity:.2f})")
-    
-    if profit_margin < -0.2:
-        high_risk = True
-        reasons.append(f"🚨 Large negative profit margin ({profit_margin*100:.1f}%) — burning cash rapidly")
-    elif profit_margin < -0.05:
-        reasons.append(f"⚠️ Negative profit margin ({profit_margin*100:.1f}%) — not yet profitable")
-    
-    if rsi > 85:
-        reasons.append(f"⚠️ RSI extremely overbought ({rsi:.1f}) — possible pullback")
-    elif rsi < 15:
-        reasons.append(f"✅ RSI extremely oversold ({rsi:.1f}) — possible bounce opportunity")
-    
-    return high_risk, reasons
-def predict_stock_trend(ticker: str, stock_data: dict, fundamentals: dict, technicals: dict, news_sentiment: Optional[dict] = None) -> dict:
-    price = stock_data["price"]
-    high_risk, reasons = stock_risk_gate(fundamentals, technicals, stock_data)
-    
-    if high_risk:
-        reasoning = f"""🔴 INVESTMENT SCORE: 0/20
-
-🚨 PREDICTION: AVOID THIS STOCK
-⚠️ CONFIDENCE: HIGH RISK
-
-{chr(10).join(reasons)}
-
-🛑 RECOMMENDATION: Do NOT invest in this stock."""
-        return {
-            'prediction': '🚨 AVOID - HIGH RISK STOCK',
-            'confidence': 0,
-            'reasoning': reasoning,
-            'target_price': price * 0.9,
-            'stop_loss': price * 0.85,
-            'position_type': '🔻 SHORT CANDIDATE',
-            'position_reasoning': 'High risk fundamentals suggest shorting opportunity or avoid entirely.'
-        }
-    
+def predict_stock_trend(ticker: str, price: float, fundamentals: dict, technicals: dict,
+                        news_sentiment: dict) -> dict:
     score = 0
-    reasoning_parts = []
+    reasons = []
     
-    pe_ratio = fundamentals.get("pe_ratio", 0)
-    if 0 < pe_ratio < 15:
-        score += 4
-        reasoning_parts.append(f"✅ Low P/E ratio ({pe_ratio:.1f}) — undervalued (+4)")
-    elif 15 <= pe_ratio < 25:
-        score += 3
-        reasoning_parts.append(f"✅ Reasonable P/E ratio ({pe_ratio:.1f}) — fair value (+3)")
-    elif 25 <= pe_ratio < 35:
-        score += 1
-        reasoning_parts.append(f"⚡ Moderate P/E ratio ({pe_ratio:.1f}) (+1)")
-    else:
-        reasoning_parts.append(f"⚠️ P/E ratio ({pe_ratio:.1f}) — expensive (0)")
-    
-    revenue_growth = fundamentals.get("revenue_growth", 0) * 100
-    if revenue_growth > 30:
-        score += 4
-        reasoning_parts.append(f"✅ Strong revenue growth ({revenue_growth:.1f}%) — excellent momentum (+4)")
-    elif revenue_growth > 15:
-        score += 3
-        reasoning_parts.append(f"✅ Good revenue growth ({revenue_growth:.1f}%) (+3)")
-    elif revenue_growth > 5:
-        score += 2
-        reasoning_parts.append(f"⚡ Positive revenue growth ({revenue_growth:.1f}%) (+2)")
-    else:
-        reasoning_parts.append(f"⚠️ Low/negative revenue growth ({revenue_growth:.1f}%) (0)")
-    
-    profit_margin = fundamentals.get("profit_margin", 0) * 100
-    if profit_margin > 20:
-        score += 3
-        reasoning_parts.append(f"✅ High profit margin ({profit_margin:.1f}%) — very profitable (+3)")
-    elif profit_margin > 10:
-        score += 2
-        reasoning_parts.append(f"✅ Good profit margin ({profit_margin:.1f}%) (+2)")
-    elif profit_margin > 5:
-        score += 1
-        reasoning_parts.append(f"⚡ Acceptable profit margin ({profit_margin:.1f}%) (+1)")
-    else:
-        reasoning_parts.append(f"⚠️ Low profit margin ({profit_margin:.1f}%) (0)")
+    pe = fundamentals.get("pe_ratio", 0)
+    fwd_pe = fundamentals.get("forward_pe", 0)
+    growth = fundamentals.get("revenue_growth", 0)
+    margin = fundamentals.get("profit_margin", 0)
+    debt_to_equity = fundamentals.get("debt_to_equity", 0)
+    roe = fundamentals.get("return_on_equity", 0)
+    analyst_rating = fundamentals.get("analyst_rating", "none")
+    target_price = fundamentals.get("target_price", 0)
     
     rsi = technicals.get("rsi", 50)
-    if 30 <= rsi <= 50:
+    trend = technicals.get("trend", "neutral")
+    
+    sentiment = news_sentiment.get("sentiment", "neutral")
+    sentiment_score = news_sentiment.get("sentiment_score", 0)
+    
+    if 10 <= pe <= 30 or 10 <= fwd_pe <= 30:
+        score += 2
+        reasons.append("✅ Reasonable P/E valuation (+2)")
+    elif pe < 0 and fwd_pe > 0:
+        score += 1
+        reasons.append("⚠️ Negative earnings but improving forward P/E (+1)")
+    else:
+        reasons.append("⚠️ P/E outside ideal range (0)")
+    
+    if growth > 0.15:
         score += 3
-        reasoning_parts.append(f"✅ RSI in buy zone ({rsi:.1f}) — good entry point (+3)")
-    elif 50 < rsi <= 60:
+        reasons.append(f"✅ Strong revenue growth ({growth*100:.1f}%) (+3)")
+    elif growth > 0.05:
         score += 2
-        reasoning_parts.append(f"⚡ RSI neutral ({rsi:.1f}) (+2)")
-    elif 60 < rsi <= 70:
+        reasons.append(f"✅ Moderate revenue growth ({growth*100:.1f}%) (+2)")
+    elif growth > 0:
         score += 1
-        reasoning_parts.append(f"⚡ RSI elevated ({rsi:.1f}) — caution (+1)")
+        reasons.append(f"⚡ Low positive revenue growth ({growth*100:.1f}%) (+1)")
     else:
-        reasoning_parts.append(f"⚠️ RSI extreme ({rsi:.1f}) — overbought/oversold (0)")
+        reasons.append(f"❌ Flat/negative revenue growth ({growth*100:.1f}%) (0)")
     
-    debt_to_equity = fundamentals.get("debt_to_equity", 0)
-    if debt_to_equity < 0.5:
+    if margin > 0.15:
         score += 2
-        reasoning_parts.append(f"✅ Low debt-to-equity ({debt_to_equity:.2f}) — strong balance sheet (+2)")
-    elif debt_to_equity < 1:
+        reasons.append(f"✅ Healthy profit margin ({margin*100:.1f}%) (+2)")
+    elif margin > 0.05:
         score += 1
-        reasoning_parts.append(f"⚡ Moderate debt-to-equity ({debt_to_equity:.2f}) (+1)")
+        reasons.append(f"⚡ Thin profit margin ({margin*100:.1f}%) (+1)")
     else:
-        reasoning_parts.append(f"⚠️ High debt-to-equity ({debt_to_equity:.2f}) (0)")
+        reasons.append(f"⚠️ Weak or negative profit margin ({margin*100:.1f}%) (0)")
     
-    rating = fundamentals.get("analyst_rating", "none")
-    if rating in ["strong_buy", "buy"]:
+    if 0 < debt_to_equity < 100:
+        score += 2
+        reasons.append(f"✅ Reasonable leverage (Debt/Equity {debt_to_equity:.0f}) (+2)")
+    elif debt_to_equity >= 200:
+        score -= 1
+        reasons.append(f"❌ High leverage (Debt/Equity {debt_to_equity:.0f}) (-1)")
+    else:
+        reasons.append(f"⚠️ Leverage profile mixed (Debt/Equity {debt_to_equity:.0f}) (0)")
+    
+    if roe > 0.15:
+        score += 2
+        reasons.append(f"✅ Strong return on equity ({roe*100:.1f}%) (+2)")
+    elif roe > 0.05:
         score += 1
-        reasoning_parts.append(f"✅ Analyst rating: {rating.replace('_', ' ').upper()} (+1)")
+        reasons.append(f"⚡ Moderate ROE ({roe*100:.1f}%) (+1)")
     else:
-        reasoning_parts.append(f"⚠️ Analyst rating: {rating.replace('_', ' ').upper()} (0)")
+        reasons.append(f"⚠️ Weak ROE ({roe*100:.1f}%) (0)")
     
-    if news_sentiment:
-        sentiment = news_sentiment.get("sentiment", "neutral")
-        sentiment_score = news_sentiment.get("sentiment_score", 0)
-        
-        if sentiment == "bullish" and sentiment_score >= 5:
+    if rsi < 30:
+        score += 2
+        reasons.append(f"✅ RSI {rsi:.1f} — oversold zone (+2)")
+    elif 30 <= rsi <= 70:
+        score += 1
+        reasons.append(f"⚡ RSI {rsi:.1f} — neutral/healthy (+1)")
+    else:
+        score -= 1
+        reasons.append(f"❌ RSI {rsi:.1f} — overbought zone (-1)")
+    
+    if trend == "bullish":
+        score += 2
+        reasons.append("✅ Price above key moving averages — bullish trend (+2)")
+    elif trend == "bearish":
+        score -= 1
+        reasons.append("❌ Price below key moving averages — bearish trend (-1)")
+    else:
+        reasons.append("⚠️ Mixed/sideways technical trend (0)")
+    
+    if sentiment == "bullish":
+        if sentiment_score >= 5:
             score += 3
-            reasoning_parts.append(f"✅ News sentiment: BULLISH (score: {sentiment_score}/10) — positive catalysts (+3)")
-        elif sentiment == "bullish":
-            score += 2
-            reasoning_parts.append(f"⚡ News sentiment: Mildly bullish (score: {sentiment_score}/10) (+2)")
-        elif sentiment == "bearish" and sentiment_score <= -5:
-            score -= 3
-            reasoning_parts.append(f"❌ News sentiment: BEARISH (score: {sentiment_score}/10) — negative catalysts (-3)")
-        elif sentiment == "bearish":
-            score -= 1
-            reasoning_parts.append(f"⚠️ News sentiment: Mildly bearish (score: {sentiment_score}/10) (-1)")
+            reasons.append(f"✅ News sentiment: strong bullish (score {sentiment_score}) (+3)")
         else:
-            reasoning_parts.append(f"⚠️ News sentiment: Neutral (0)")
-    
-    score = max(0, min(20, score))
-    
-    if score >= 17:
-        prediction_text = "🔥 STRONG BUY"
-        target_mult = 1.5
-    elif score >= 14:
-        prediction_text = "🚀 BUY"
-        target_mult = 1.3
-    elif score >= 10:
-        prediction_text = "⚡ MODERATE BUY"
-        target_mult = 1.15
-    elif score >= 6:
-        prediction_text = "📊 HOLD"
-        target_mult = 1.05
+            score += 2
+            reasons.append(f"✅ News sentiment: bullish (score {sentiment_score}) (+2)")
+    elif sentiment == "bearish":
+        if sentiment_score <= -5:
+            score -= 3
+            reasons.append(f"❌ News sentiment: strongly bearish (score {sentiment_score}) (-3)")
+        else:
+            score -= 2
+            reasons.append(f"❌ News sentiment: bearish (score {sentiment_score}) (-2)")
     else:
-        prediction_text = "⚠️ WEAK / HOLD"
-        target_mult = 1.0
+        reasons.append("⚠️ News sentiment: neutral/unclear (0)")
     
-    if score < 4:
-        position_type = "🔻 SHORT CANDIDATE"
-        position_reasoning = "Weak fundamentals and negative news suggest shorting opportunity."
-    elif score >= 14:
-        position_type = "🔼 LONG (BUY & HOLD)"
-        position_reasoning = "Strong fundamentals, technicals, and positive news support long position with conviction."
-    elif score >= 10:
-        position_type = "🔼 LONG (MODERATE)"
-        position_reasoning = "Good fundamentals support long position; consider staged entry."
-    elif score >= 6:
-        position_type = "➡️ LONG (CAUTIOUS)"
-        position_reasoning = "Moderate fundamentals; suitable for long but with tight stops."
+    if analyst_rating in ["strong_buy", "buy"]:
+        score += 2
+        reasons.append(f"✅ Analyst consensus: {analyst_rating.replace('_', ' ').title()} (+2)")
+    elif analyst_rating in ["hold"]:
+        score += 1
+        reasons.append("⚡ Analyst consensus: Hold (+1)")
+    elif analyst_rating in ["sell", "strong_sell"]:
+        score -= 2
+        reasons.append(f"❌ Analyst consensus: {analyst_rating.replace('_', ' ').title()} (-2)")
     else:
-        position_type = "⏸️ NEUTRAL / WAIT"
-        position_reasoning = "Mixed signals; wait for clearer setup before entering position."
+        reasons.append("⚠️ Analyst rating: not available (0)")
     
-    if target_mult >= 1.5:
-        recommendation = "✅ RECOMMENDATION: Strong buy with 50%+ upside potential."
-    elif target_mult >= 1.3:
-        recommendation = "✅ RECOMMENDATION: Good buy opportunity with 30%+ upside."
-    elif target_mult >= 1.15:
-        recommendation = "⚡ RECOMMENDATION: Moderate buy for diversification."
-    elif target_mult >= 1.05:
-        recommendation = "⚠️ RECOMMENDATION: Hold current position or wait for better entry."
+    if target_price and target_price > 0:
+        upside = (target_price - price) / price
+        if upside > 0.3:
+            score += 2
+            reasons.append(f"✅ Analyst target implies {upside*100:.0f}% upside (+2)")
+        elif upside > 0.1:
+            score += 1
+            reasons.append(f"⚡ Analyst target implies {upside*100:.0f}% upside (+1)")
+        elif upside < -0.1:
+            score -= 1
+            reasons.append(f"❌ Analyst target below current price ({upside*100:.0f}% downside) (-1)")
+        else:
+            reasons.append(f"⚠️ Analyst target near current price ({upside*100:.0f}% move) (0)")
     else:
-        recommendation = "❌ RECOMMENDATION: Weak fundamentals, consider alternatives."
+        reasons.append("⚠️ No clear analyst target price (0)")
     
-    news_section = ""
-    if news_sentiment and news_sentiment.get("key_headlines"):
-        headlines_text = "\n".join([f"• {h}" for h in news_sentiment.get("key_headlines", [])[:3]])
-        news_analysis = news_sentiment.get("analysis", "")
-        news_section = f"""
-
-📰 RECENT NEWS ANALYSIS:
-{news_analysis}
-
-Key Headlines:
-{headlines_text}"""
+    max_score = 20
+    normalized_score = max(0, min(max_score, score))
     
-    reasoning_output = f"""📊 INVESTMENT SCORE: {score}/20
-
-🎯 PREDICTION: {prediction_text}
-
-{chr(10).join(reasoning_parts)}
-
-{recommendation}{news_section}"""
+    if normalized_score >= 15:
+        prediction = "🏆 STRONG BUY"
+        position_type = "AGGRESSIVE LONG"
+        risk_label = "LOW–MODERATE RISK"
+    elif normalized_score >= 11:
+        prediction = "✅ BUY"
+        position_type = "STANDARD LONG"
+        risk_label = "MODERATE RISK"
+    elif normalized_score >= 7:
+        prediction = "⚖️ HOLD / NEUTRAL"
+        position_type = "NEUTRAL / WAIT"
+        risk_label = "BALANCED RISK"
+    elif normalized_score >= 4:
+        prediction = "⚠️ WEAK / TRIM"
+        position_type = "REDUCE / AVOID NEW ENTRIES"
+        risk_label = "ELEVATED RISK"
+    else:
+        prediction = "❌ AVOID"
+        position_type = "NO POSITION / EXIT"
+        risk_label = "HIGH RISK"
     
-    target_price = fundamentals.get("target_price", price * target_mult)
-    if target_price == 0 or target_price is None:
-        target_price = price * target_mult
-    
+    reasoning_output = f"""INVESTMENT SCORE: {normalized_score}/{max_score}
+
+🎯 PREDICTION: {prediction}
+📍 POSITION: {position_type}
+⚠️ RISK PROFILE: {risk_label}
+
+{chr(10).join(reasons)}"""
+
     return {
-        'prediction': prediction_text,
-        'confidence': int((score / 20) * 100),
-        'reasoning': reasoning_output,
-        'target_price': target_price,
-        'stop_loss': price * 0.92,
-        'position_type': position_type,
-        'position_reasoning': position_reasoning
+        "prediction": prediction,
+        "position_type": position_type,
+        "score": normalized_score,
+        "max_score": max_score,
+        "reasoning": reasoning_output
     }
 
+# ======================= CRYPTO PREDICT ENDPOINT =======================
 
 @app.get("/api/predict")
-async def predict(symbol: str, credentials: Optional[HTTPAuthorizationCredentials] = Depends(HTTPBearer(auto_error=False)), db: Session = Depends(get_db)):
+async def predict(symbol: str,
+                  credentials: Optional[HTTPAuthorizationCredentials] = Depends(HTTPBearer(auto_error=False)),
+                  db: Session = Depends(get_db)):
     try:
-        current_user = None
+        user: Optional[User] = None
         if credentials:
             try:
-                current_user = get_current_user(credentials, db)
-            except:
-                pass
+                user = get_current_user(credentials, db)
+            except HTTPException:
+                user = None
         
         search_url = f"https://api.dexscreener.com/latest/dex/search?q={symbol}"
         response = requests.get(search_url, timeout=10)
         
-        if response.status_code == 200:
-            data = response.json()
-            if data.get('pairs'):
-                pair = data['pairs'][0]
-                token_symbol = pair.get('baseToken', {}).get('symbol', symbol)
-                token_name = pair.get('baseToken', {}).get('name', 'Unknown')
-                token_address = pair.get('baseToken', {}).get('address', symbol)
-                price = float(pair.get('priceUsd', 0))
-                volume24h = float(pair.get('volume', {}).get('h24', 0))
-                liquidity = float(pair.get('liquidity', {}).get('usd', 0))
-                
-                onchain_info = get_token_onchain_info(token_address)
-                holder_metrics = get_holder_metrics(onchain_info)
-                creator_addr = onchain_info.get("creator")
-                creator_history = get_creator_history(creator_addr)
-                
-                result = predict_trend(price, volume24h, liquidity, token_address, holder_metrics, creator_history)
-                
-                if current_user:
-                    save_analysis_to_history(user=current_user, analysis_type="crypto", symbol=token_symbol, name=token_name,
-                                            price=price, prediction=result['prediction'], confidence=result['confidence'], db=db)
-                
-                send_discord_notification(token_symbol, token_name, price, result['prediction'], volume24h, liquidity)
-                
-                return {
-                    'symbol': token_symbol, 'name': token_name, 'price': price, 'volume24h': volume24h, 'liquidity': liquidity,
-                    'prediction': result['prediction'], 'confidence': result['confidence'], 'reasoning': result['reasoning'],
-                    'highest_price': result['highest_price'], 'lowest_price': result['lowest_price'],
-                    'chart_analysis': result['chart_analysis']
-                }
+        if response.status_code != 200:
+            raise HTTPException(status_code=500, detail="Failed to fetch token data")
         
-        raise HTTPException(status_code=404, detail="Token not found on any exchange")
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error: {str(e)}")
-
-
-@app.get("/api/predict-stock")
-async def predict_stock(ticker: str, credentials: Optional[HTTPAuthorizationCredentials] = Depends(HTTPBearer(auto_error=False)), db: Session = Depends(get_db)):
-    try:
-        current_user = None
-        if credentials:
+        data = response.json()
+        pairs = data.get('pairs', [])
+        
+        if not pairs:
+            raise HTTPException(status_code=404, detail="Token not found on any exchange")
+        
+        sol_pairs = [p for p in pairs if p.get("chainId") == "solana"]
+        pair = sol_pairs[0] if sol_pairs else pairs[0]
+        
+        price = float(pair.get('priceUsd', 0))
+        volume24h = float(pair.get('volume', {}).get('h24', 0))
+        liquidity = float(pair.get('liquidity', {}).get('usd', 0))
+        token_name = pair.get('baseToken', {}).get('name', 'Unknown Token')
+        base_symbol = pair.get('baseToken', {}).get('symbol', symbol)
+        mint_address = pair.get('baseToken', {}).get('address')
+        
+        onchain_info = get_token_onchain_info(mint_address) if mint_address else {"creator": None, "top_holders": [], "lp_locked": True}
+        holder_metrics = get_holder_metrics(onchain_info)
+        creator_history = None
+        
+        if onchain_info.get("creator"):
+            creator_history = get_creator_history(onchain_info["creator"])
+        
+        prediction_result = predict_trend(price, volume24h, liquidity, mint_address, holder_metrics, creator_history)
+        
+        chart_analysis = prediction_result.get("chart_analysis", "")
+        
+        send_discord_notification(
+            symbol=base_symbol,
+            token_name=token_name,
+            price=price,
+            prediction=prediction_result['prediction'],
+            volume24h=volume24h,
+            liquidity=liquidity
+        )
+        
+        if user and db:
             try:
-                current_user = get_current_user(credentials, db)
-            except:
-                pass
-        
-        ticker = ticker.upper().strip()
-        stock_data = get_stock_data(ticker)
-        if not stock_data:
-            raise HTTPException(status_code=404, detail="Stock not found")
-        
-        fundamentals = get_stock_fundamentals(ticker)
-        technicals = get_stock_technicals(ticker)
-        news_articles = get_stock_news(ticker)
-        news_sentiment = analyze_news_sentiment(ticker, news_articles)
-        result = predict_stock_trend(ticker, stock_data, fundamentals, technicals, news_sentiment)
-        
-        if current_user:
-            save_analysis_to_history(user=current_user, analysis_type="stock", symbol=ticker, name=stock_data['name'],
-                                    price=stock_data['price'], prediction=result['prediction'],
-                                    confidence=result['confidence'], position_type=result['position_type'], db=db)
-        
-        send_stock_discord_notification(ticker, stock_data['name'], stock_data['price'], result['prediction'],
-                                        stock_data['sector'], result['position_type'])
+                save_analysis_to_history(
+                    user=user,
+                    analysis_type="crypto",
+                    symbol=base_symbol,
+                    name=token_name,
+                    price=price,
+                    prediction=prediction_result['prediction'],
+                    confidence=int(prediction_result['confidence']),
+                    position_type=None,
+                    db=db
+                )
+            except Exception as e:
+                print(f"Failed to save crypto analysis history: {e}")
         
         return {
-            'ticker': ticker, 'name': stock_data['name'], 'price': stock_data['price'], 'volume': stock_data['volume'],
-            'market_cap': stock_data['market_cap'], 'sector': stock_data['sector'], 'prediction': result['prediction'],
-            'confidence': result['confidence'], 'reasoning': result['reasoning'], 'target_price': result['target_price'],
-            'stop_loss': result['stop_loss'], 'position_type': result['position_type'],
-            'position_reasoning': result['position_reasoning'], 'fundamentals': fundamentals, 'technicals': technicals,
-            'news_sentiment': news_sentiment
+            'symbol': base_symbol,
+            'name': token_name,
+            'price': price,
+            'volume24h': volume24h,
+            'liquidity': liquidity,
+            'prediction': prediction_result['prediction'],
+            'confidence': prediction_result['confidence'],
+            'reasoning': prediction_result['reasoning'],
+            'highest_price': prediction_result['highest_price'],
+            'lowest_price': prediction_result['lowest_price'],
+            'chart_analysis': chart_analysis
         }
     except HTTPException as he:
         raise he
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error analyzing stock: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Prediction error: {str(e)}")
 
+# ======================= STOCK PREDICT ENDPOINT =======================
+
+def send_stock_discord_notification(ticker: str, company_name: Optional[str] = None, price: Optional[float] = None,
+                                    prediction: Optional[str] = None, sector: Optional[str] = None,
+                                    position_type: Optional[str] = None):
+    try:
+        color = 5814783
+        if prediction and "STRONG BUY" in prediction:
+            color = 5763719
+        elif prediction and "BUY" in prediction:
+            color = 5763719
+        elif prediction and "HOLD" in prediction:
+            color = 16776960
+        elif prediction and "AVOID" in prediction:
+            color = 15548997
+        
+        embed = {
+            "title": "📊 New Stock Search",
+            "color": color,
+            "fields": [
+                {"name": "📈 Ticker", "value": ticker, "inline": True},
+                {"name": "🕒 Time", "value": datetime.now().strftime("%Y-%m-%d %H:%M:%S EST"), "inline": True}
+            ],
+            "footer": {"text": "Stock Market Analyst"},
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        
+        if company_name:
+            embed["fields"].insert(1, {"name": "🏢 Company", "value": company_name, "inline": False})
+        if price:
+            embed["fields"].append({"name": "💰 Price", "value": f"${price:.2f}", "inline": True})
+        if sector:
+            embed["fields"].append({"name": "🏭 Sector", "value": sector, "inline": True})
+        if prediction:
+            embed["fields"].append({"name": "🎯 Prediction", "value": prediction, "inline": False})
+        if position_type:
+            embed["fields"].append({"name": "📍 Position", "value": position_type, "inline": False})
+        
+        payload = {"embeds": [embed]}
+        requests.post(DISCORD_WEBHOOK_STOCK, json=payload, timeout=5)
+    except Exception as e:
+        print(f"Discord stock notification failed: {e}")
+
+
+@app.get("/api/predict-stock")
+async def predict_stock(ticker: str,
+                        credentials: Optional[HTTPAuthorizationCredentials] = Depends(HTTPBearer(auto_error=False)),
+                        db: Session = Depends(get_db)):
+    try:
+        user: Optional[User] = None
+        if credentials:
+            try:
+                user = get_current_user(credentials, db)
+            except HTTPException:
+                user = None
+        
+        data = get_stock_data(ticker)
+        if not data:
+            raise HTTPException(status_code=404, detail="Stock not found")
+        
+        price = data["price"]
+        fundamentals = get_stock_fundamentals(ticker)
+        technicals = get_stock_technicals(ticker)
+        news_articles = get_stock_news(ticker)
+        news_sentiment = analyze_news_sentiment(ticker, news_articles)
+        
+        prediction_result = predict_stock_trend(ticker, price, fundamentals, technicals, news_sentiment)
+        
+        send_stock_discord_notification(
+            ticker=ticker,
+            company_name=data["name"],
+            price=price,
+            prediction=prediction_result["prediction"],
+            sector=data["sector"],
+            position_type=prediction_result["position_type"]
+        )
+        
+        if user and db:
+            try:
+                save_analysis_to_history(
+                    user=user,
+                    analysis_type="stock",
+                    symbol=ticker,
+                    name=data["name"],
+                    price=price,
+                    prediction=prediction_result['prediction'],
+                    confidence=int(prediction_result['score'] / prediction_result['max_score'] * 100),
+                    position_type=prediction_result["position_type"],
+                    db=db
+                )
+            except Exception as e:
+                print(f"Failed to save stock analysis history: {e}")
+        
+        return {
+            "ticker": ticker,
+            "name": data["name"],
+            "price": price,
+            "sector": data["sector"],
+            "industry": data["industry"],
+            "prediction": prediction_result["prediction"],
+            "position_type": prediction_result["position_type"],
+            "score": prediction_result["score"],
+            "max_score": prediction_result["max_score"],
+            "reasoning": prediction_result["reasoning"],
+            "news_sentiment": news_sentiment
+        }
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Stock prediction error: {str(e)}")
+
+# ======================= SUPPORTING ENDPOINTS =======================
 
 @app.get("/api/latest-tokens")
 async def get_latest_tokens():
     try:
-        trending = [
-            {"symbol": "$TROLL", "price": "$0.000010"},
-            {"symbol": "$SHITCOIN", "price": "$0.000020"},
-            {"symbol": "$NUB", "price": "$0.000030"},
-            {"symbol": "$WIF", "price": "$0.000040"}
-        ]
-        return {"tokens": trending}
+        url = "https://api.dexscreener.com/latest/dex/search?q=SOL"
+        response = requests.get(url, timeout=10)
+        if response.status_code != 200:
+            return {"tokens": []}
+        
+        data = response.json()
+        pairs = data.get("pairs", []) or []
+        
+        tokens = []
+        for p in pairs[:10]:
+            base = p.get("baseToken", {})
+            symbol = base.get("symbol", "N/A")
+            price = p.get("priceUsd")
+            if price:
+                try:
+                    price_str = f"${float(price):.6f}" if float(price) < 1 else f"${float(price):.4f}"
+                except Exception:
+                    price_str = f"${price}"
+            else:
+                price_str = "N/A"
+            tokens.append({"symbol": symbol, "price": price_str})
+        
+        return {"tokens": tokens}
     except Exception as e:
-        return {"tokens": [], "error": str(e)}
+        print(f"Latest tokens error: {e}")
+        return {"tokens": []}
 
 
 @app.get("/api/trending-stocks")
 async def get_trending_stocks():
     try:
-        trending = [
-            {"ticker": "AAPL", "name": "Apple"},
-            {"ticker": "TSLA", "name": "Tesla"},
-            {"ticker": "NVDA", "name": "NVIDIA"},
-            {"ticker": "MSFT", "name": "Microsoft"},
-            {"ticker": "GOOGL", "name": "Google"},
-            {"ticker": "AMZN", "name": "Amazon"}
-        ]
-        
-        results = []
-        for stock in trending:
-            try:
-                ticker_obj = yf.Ticker(stock['ticker'])
-                hist = ticker_obj.history(period="1d")
-                if not hist.empty:
-                    price = hist['Close'].iloc[-1]
-                    results.append({'ticker': stock['ticker'], 'name': stock['name'], 'price': f"${price:.2f}"})
-            except:
+        popular = ["AAPL", "TSLA", "NVDA", "MSFT", "GOOGL", "AMZN"]
+        stocks = []
+        for t in popular:
+            data = get_stock_data(t)
+            if not data:
                 continue
-        
-        return {'stocks': results}
-    except Exception:
-        return {'stocks': []}
-
-
-@app.get("/api/history")
-async def get_history(symbol: str):
-    try:
-        search_url = f"https://api.dexscreener.com/latest/dex/search?q={symbol}"
-        response = requests.get(search_url, timeout=10)
-        
-        current_price = 0.0001
-        token_address = symbol
-        volume24h = 100000
-        liquidity = 50000
-        
-        if response.status_code == 200:
-            data = response.json()
-            if data.get('pairs'):
-                pair = data['pairs'][0]
-                current_price = float(pair.get('priceUsd', 0.0001))
-                token_address = pair.get('baseToken', {}).get('address', symbol)
-                volume24h = float(pair.get('volume', {}).get('h24', 0))
-                liquidity = float(pair.get('liquidity', {}).get('usd', 0))
-        
-        onchain_info = get_token_onchain_info(token_address)
-        holder_metrics = get_holder_metrics(onchain_info)
-        creator_addr = onchain_info.get("creator")
-        creator_history = get_creator_history(creator_addr)
-        result = predict_trend(current_price, volume24h, liquidity, token_address, holder_metrics, creator_history)
-        
-        history = []
-        base_time = datetime.now()
-        
-        for i in range(100, 0, -1):
-            timestamp = (base_time - timedelta(minutes=i * 5)).isoformat()
-            variation = random.uniform(-0.05, 0.05)
-            price = current_price * (1 + variation)
-            history.append({'time': timestamp, 'price': price})
-        
-        history.append({'time': base_time.isoformat(), 'price': current_price})
-        
-        future = []
-        prediction = result['prediction']
-        
-        if 'AVOID' in prediction or 'RUG' in prediction:
-            base_trend = -0.015
-            volatility = 0.03
-        elif '10x+' in prediction:
-            base_trend = 0.012
-            volatility = 0.025
-        elif '5x' in prediction:
-            base_trend = 0.008
-            volatility = 0.02
-        elif '2x' in prediction:
-            base_trend = 0.005
-            volatility = 0.018
-        elif '30%+' in prediction:
-            base_trend = 0.003
-            volatility = 0.015
-        else:
-            base_trend = 0.0
-            volatility = 0.02
-        
-        last_price = current_price
-        for i in range(1, 13):
-            future_time = (base_time + timedelta(minutes=i * 5)).isoformat()
-            trend_component = base_trend * i * 0.4
-            noise = random.uniform(-volatility * 1.5, volatility * 1.5)
-            
-            if i > 1:
-                price_change = (future[-1]['price'] - last_price) / last_price
-                momentum = price_change * 0.5
-                oscillation = 0.01 * random.choice([-1, 1]) * (i % 3)
-            else:
-                momentum = 0
-                oscillation = 0
-            
-            future_price = current_price * (1 + trend_component + noise + momentum + oscillation)
-            future_price = max(future_price, current_price * 0.5)
-            
-            future.append({'time': future_time, 'price': future_price})
-            last_price = future_price
-        
-        all_prices = [p['price'] for p in history] + [p['price'] for p in future]
-        return {'history': history, 'future': future, 'high_prediction': max(all_prices), 'low_prediction': min(all_prices)}
-    except Exception:
-        current_time = datetime.now()
-        fallback_price = 0.0001
-        return {
-            'history': [{'time': (current_time - timedelta(hours=i)).isoformat(), 'price': fallback_price * random.uniform(0.95, 1.05)} for i in range(10, 0, -1)],
-            'future': [{'time': (current_time + timedelta(hours=i)).isoformat(), 'price': fallback_price * (1 + random.uniform(-0.02, 0.02) * i)} for i in range(1, 5)],
-            'high_prediction': fallback_price * 1.1,
-            'low_prediction': fallback_price * 0.95
-        }
-
-
-@app.get("/api/stock-history")
-async def get_stock_history(ticker: str):
-    try:
-        ticker = ticker.upper().strip()
-        stock = yf.Ticker(ticker)
-        hist = stock.history(period="3mo")
-        
-        if hist.empty:
-            raise HTTPException(status_code=404, detail="Stock not found")
-        
-        current_price = hist['Close'].iloc[-1]
-        stock_data = get_stock_data(ticker)
-        fundamentals = get_stock_fundamentals(ticker)
-        technicals = get_stock_technicals(ticker)
-        news_articles = get_stock_news(ticker)
-        news_sentiment = analyze_news_sentiment(ticker, news_articles)
-        result = predict_stock_trend(ticker, stock_data, fundamentals, technicals, news_sentiment)
-        
-        history = []
-        for index, row in hist.tail(60).iterrows():
-            history.append({'time': index.isoformat(), 'price': float(row['Close'])})
-        
-        future = []
-        prediction = result['prediction']
-        base_time = datetime.now()
-        
-        if 'AVOID' in prediction or 'WEAK' in prediction:
-            base_trend = -0.002
-            volatility = 0.015
-        elif 'STRONG BUY' in prediction:
-            base_trend = 0.008
-            volatility = 0.012
-        elif 'BUY' in prediction:
-            base_trend = 0.005
-            volatility = 0.01
-        elif 'MODERATE' in prediction:
-            base_trend = 0.003
-            volatility = 0.01
-        else:
-            base_trend = 0.001
-            volatility = 0.008
-        
-        last_price = current_price
-        for i in range(1, 13):
-            future_time = (base_time + timedelta(days=i * 2)).isoformat()
-            trend_component = base_trend * i * 0.5
-            noise = random.uniform(-volatility * 1.2, volatility * 1.2)
-            
-            if i > 1:
-                price_change = (future[-1]['price'] - last_price) / last_price
-                momentum = price_change * 0.4
-                oscillation = 0.005 * random.choice([-1, 1]) * (i % 3)
-            else:
-                momentum = 0
-                oscillation = 0
-            
-            future_price = current_price * (1 + trend_component + noise + momentum + oscillation)
-            future_price = max(future_price, current_price * 0.7)
-            
-            future.append({'time': future_time, 'price': future_price})
-            last_price = future_price
-        
-        all_prices = [p['price'] for p in history] + [p['price'] for p in future]
-        return {'history': history, 'future': future, 'high_prediction': max(all_prices), 'low_prediction': min(all_prices)}
+            price = data["price"]
+            stocks.append({"ticker": t, "price": f"${price:.2f}"})
+        return {"stocks": stocks}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error: {str(e)}")
+        print(f"Trending stocks error: {e}")
+        return {"stocks": []}
 
 
 @app.get("/api/token-info")
@@ -1554,64 +1389,125 @@ async def get_token_info(symbol: str):
     try:
         search_url = f"https://api.dexscreener.com/latest/dex/search?q={symbol}"
         response = requests.get(search_url, timeout=10)
+        if response.status_code != 200:
+            raise HTTPException(status_code=500, detail="Failed to fetch token data")
         
-        if response.status_code == 200:
-            data = response.json()
-            if data.get('pairs'):
-                pair = data['pairs'][0]
-                return {
-                    'symbol': pair.get('baseToken', {}).get('symbol', symbol),
-                    'name': pair.get('baseToken', {}).get('name', 'Unknown'),
-                    'address': pair.get('baseToken', {}).get('address', symbol),
-                    'price': float(pair.get('priceUsd', 0)),
-                    'volume24h': float(pair.get('volume', {}).get('h24', 0)),
-                    'liquidity': float(pair.get('liquidity', {}).get('usd', 0))
-                }
+        data = response.json()
+        pairs = data.get('pairs', [])
         
-        raise HTTPException(status_code=404, detail="Token not found")
+        if not pairs:
+            raise HTTPException(status_code=404, detail="Token not found on any exchange")
+        
+        pair = pairs[0]
+        token_name = pair.get('baseToken', {}).get('name', 'Unknown Token')
+        base_symbol = pair.get('baseToken', {}).get('symbol', symbol)
+        mint_address = pair.get('baseToken', {}).get('address')
+        
+        onchain_info = get_token_onchain_info(mint_address) if mint_address else {"creator": None, "top_holders": [], "lp_locked": True}
+        holder_metrics = get_holder_metrics(onchain_info)
+        
+        return {
+            "symbol": base_symbol,
+            "name": token_name,
+            "mint_address": mint_address,
+            "onchain_info": onchain_info,
+            "holder_metrics": holder_metrics
+        }
+    except HTTPException as he:
+        raise he
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Token info error: {str(e)}")
 
+# === NEW: CRYPTO & MARKET NEWS FOR TICKERS ===
+
+@app.get("/api/crypto-news")
+async def get_crypto_news():
+    """
+    Simple crypto news feed for the left ticker.
+    """
+    try:
+        news = [
+            {"headline": "Solana memecoins see surge in volume", "source": "On‑chain Watch"},
+            {"headline": "New Solana DEX launches zero‑fee trading", "source": "Solana News"},
+            {"headline": "DeFi TVL climbs to new monthly high", "source": "DeFiPulse"},
+            {"headline": "BTC breaks key resistance level", "source": "MarketWire"},
+            {"headline": "AI agents begin auto‑trading memecoins", "source": "MemeBots"}
+        ]
+        return {"news": news}
+    except Exception as e:
+        print(f"Crypto news error: {e}")
+        return {"news": []}
+
+
+@app.get("/api/market-news")
+async def get_market_news():
+    """
+    Stock/market news feed for the right ticker, using Finnhub 'general' news.
+    """
+    try:
+        url = f"https://finnhub.io/api/v1/news?category=general&token={FINNHUB_API_KEY}"
+        resp = requests.get(url, timeout=10)
+        if resp.status_code != 200:
+            print(f"Finnhub market news error: {resp.status_code}")
+            return {"news": []}
+        raw = resp.json() or []
+        news = [
+            {
+                "headline": item.get("headline", "Market update"),
+                "source": item.get("source", "Finnhub")
+            }
+            for item in raw[:30]
+        ]
+        return {"news": news}
+    except Exception as e:
+        print(f"Market news error: {e}")
+        return {"news": []}
 
 @app.get("/api/solana-price")
 async def get_solana_price():
     try:
-        response = requests.get('https://api.coingecko.com/api/v3/simple/price',
-            params={'ids': 'solana', 'vs_currencies': 'usd', 'include_24hr_change': 'true'},
-            timeout=10, headers={'User-Agent': 'Mozilla/5.0'})
-        if response.status_code == 200:
-            data = response.json()
-            if 'solana' in data:
-                return {'price': data['solana']['usd'], 'change_24h': data['solana'].get('usd_24h_change', 0)}
+        url = "https://api.binance.com/api/v3/ticker/24hr?symbol=SOLUSDT"
+        response = requests.get(url, timeout=10)
+        if response.status_code != 200:
+            return {"error": "Failed to fetch SOL price"}
         
-        return {'error': 'Failed to fetch price'}
+        data = response.json()
+        price = float(data.get("lastPrice", 0))
+        change = float(data.get("priceChangePercent", 0))
+        
+        return {"price": price, "change_24h": change}
     except Exception as e:
-        return {'error': str(e)}
+        print(f"SOL price error: {e}")
+        return {"error": "Failed to fetch SOL price"}
 
 
 @app.get("/api/market-indices")
 async def get_market_indices():
     try:
-        indices = {"^GSPC": "S&P 500", "^IXIC": "NASDAQ", "^DJI": "Dow Jones"}
-        results = []
+        sp = yf.Ticker("^GSPC")
+        hist = sp.history(period="2d")
+        if len(hist) < 2:
+            return {"indices": []}
         
-        for symbol, name in indices.items():
-            try:
-                index = yf.Ticker(symbol)
-                hist = index.history(period="5d")
-                
-                if not hist.empty and len(hist) >= 2:
-                    current_price = hist['Close'].iloc[-1]
-                    prev_price = hist['Close'].iloc[-2]
-                    change = ((current_price - prev_price) / prev_price) * 100
-                    results.append({'name': name, 'price': float(current_price), 'change': float(change)})
-            except:
-                continue
+        latest = hist.iloc[-1]
+        prev = hist.iloc[-2]
+        price = float(latest["Close"])
+        change_pct = float((latest["Close"] - prev["Close"]) / prev["Close"] * 100)
         
-        return {'indices': results}
-    except Exception:
-        return {'indices': []}
+        return {"indices": [{"name": "S&P 500", "price": price, "change": change_pct}]}
+    except Exception as e:
+        print(f"Market indices error: {e}")
+        return {"indices": []}
 
+
+@app.get("/")
+async def read_root():
+    return FileResponse('static/index.html')
+
+
+@app.get("/api")
+async def get_api():
+    return {"message": "Market Analyst API - Crypto & Stocks with Auth", "status": "running"}
 
 if __name__ == "__main__":
     import uvicorn

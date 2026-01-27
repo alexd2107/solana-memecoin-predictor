@@ -20,6 +20,7 @@
         .modal-input::placeholder { color: #8fa4d5; }
         .auth-toggle { color: #14f195; cursor: pointer; text-decoration: underline; margin-top: 15px; display: inline-block; }
         .degen-text { color: #9945ff; font-weight: bold; font-style: italic; }
+
         .price-bar { background: linear-gradient(90deg, #14f195 0%, #9945ff 100%); padding: 12px 20px; font-weight: bold; font-size: 1em; box-shadow: 0 2px 8px rgba(0,0,0,0.3); position: sticky; top: 0; z-index: 1000; display: flex; justify-content: space-between; align-items: center; }
         .price-bar-center { display: flex; gap: 40px; justify-content: center; flex: 1; }
         .price-bar-right { display: flex; gap: 10px; align-items: center; width: 250px; justify-content: flex-end; }
@@ -35,31 +36,87 @@
         .price-change { font-size: 0.85em; padding: 3px 7px; border-radius: 4px; background: rgba(255,255,255,0.2); }
         .price-up { color: #14f195; }
         .price-down { color: #ff6b6b; }
+
         .two-column-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; max-width: 1400px; margin: 40px auto; padding: 0 20px; }
         .column { background: rgba(24, 28, 41, 0.92); border-radius: 16px; box-shadow: 0 2px 24px 0 #0002; padding: 36px 30px; }
         .column h1 { margin-top: 0; font-size: 2em; text-align: center; }
+
         .search-bar { display: flex; gap: 10px; margin-bottom: 24px; }
         input[type="text"], input[type="email"], input[type="password"] { flex: 1; padding: 10px; font-size: 1em; border: none; border-radius: 8px; background: #2f3857; color: #fff; }
         input::placeholder { color: #8fa4d5; }
         button { background: #5792fe; color: #fff; border: none; border-radius: 8px; padding: 10px 18px; font-size: 1em; cursor: pointer; font-weight: bold; }
         button:hover { background: #2f76e2; }
+
         .result { margin-top: 32px; font-size: 1.07em; background: #262c44; border-radius: 10px; padding: 22px 16px; min-height: 60px; word-break: break-word; white-space: pre-line; display: none; }
         .history-section { margin-top: 40px; padding: 20px; background: #1a1f2e; border-radius: 10px; display: none; }
         .history-section h3 { color: #14f195; margin-top: 0; }
         .history-item { background: #262c44; padding: 15px; margin: 10px 0; border-radius: 8px; cursor: pointer; }
         .history-item:hover { background: #2f3857; }
+
         .trending-list { margin: 24px 0 10px 0; }
         .trend-row { background: #21273a; margin-bottom: 12px; border-radius: 10px; display: flex; align-items: center; padding: 15px 20px; cursor: pointer; transition: background 0.2s; }
         .trend-row:hover { background: #2e3651; }
         .trend-symbol { font-weight: bold; font-size: 1.11em; color: #91fe77; margin-right: 15px; }
         .trend-price { color: #6fc4fa; font-size: 1em; font-weight: 500; }
+
         .chart-container { width: 100%; margin: 24px auto 0; display: none; background: #21273a; border-radius: 10px; padding: 20px; }
         .chart-title { font-size: 1.1em; font-weight: bold; color: #91fe77; margin-bottom: 12px; text-align: center; }
         canvas { width: 100% !important; height: auto !important; }
+
         .spinner { display: inline-block; width: 34px; height: 34px; }
         .spinner:after { content: " "; display: block; width: 24px; height: 24px; margin: 4px auto; border-radius: 50%; border: 4px solid #5792fe; border-color: #5792fe #5792fe #5792fe transparent; animation: spin 1s linear infinite; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-        @media (max-width: 1200px) { .two-column-layout { grid-template-columns: 1fr; } }
+
+        /* Ticker layout */
+        .ticker-layout {
+            display: grid;
+            grid-template-columns: 220px minmax(0, 1fr) 220px;
+            align-items: stretch;
+        }
+
+        .news-ticker {
+            background: #151827;
+            border-right: 1px solid #262c44;
+            border-left: 1px solid #262c44;
+            overflow: hidden;
+            position: relative;
+        }
+        .news-ticker-left { border-radius: 0 16px 16px 0; }
+        .news-ticker-right { border-radius: 16px 0 0 16px; }
+
+        .news-ticker-inner {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            padding: 16px 10px;
+            animation: ticker-scroll 30s linear infinite;
+        }
+        .news-item {
+            font-size: 0.78rem;
+            line-height: 1.4;
+            color: #c3d0ff;
+            padding: 8px 10px;
+            background: #1e2436;
+            border-radius: 8px;
+        }
+        .news-item span.source {
+            display: block;
+            font-size: 0.7rem;
+            color: #8fa4d5;
+            margin-top: 4px;
+        }
+        @keyframes ticker-scroll {
+            0%   { transform: translateY(0); }
+            100% { transform: translateY(-50%); }
+        }
+
+        @media (max-width: 1200px) {
+            .two-column-layout { grid-template-columns: 1fr; }
+        }
+        @media (max-width: 1100px) {
+            .ticker-layout { grid-template-columns: 1fr; }
+            .news-ticker { display: none; }
+        }
     </style>
 </head>
 <body>
@@ -141,67 +198,86 @@
         </div>
     </div>
 
-    <!-- Main Layout -->
-    <div class="two-column-layout">
-        <!-- Crypto Column -->
-        <div class="column crypto-column">
-            <h1>🪙 Crypto Analyst</h1>
-            <div class="search-bar">
-                <input type="text" id="cryptoSymbol" placeholder="Enter coin symbol (e.g., $TROLL)">
-                <button onclick="analyzeCrypto()">Analyze</button>
-            </div>
-            <div id="cryptoTrending" class="trending-list"></div>
-            
-            <div id="cryptoLogoContainer" style="text-align: center; padding: 50px 20px; background: #262c44; border-radius: 10px; margin-top: 32px;">
-                <img src="/static/logo.png?v=1" alt="Crypto Logo" style="max-width: 300px; width: 100%; height: auto;">
-            </div>
-            
-            <div id="cryptoResult" class="result"></div>
-            
-            <div id="cryptoShortTermContainer" class="chart-container">
-                <div class="chart-title">📈 Short-Term (1 Hour Prediction)</div>
-                <canvas id="cryptoShortTermChart"></canvas>
-            </div>
-            
-            <div id="cryptoLongTermContainer" class="chart-container">
-                <div class="chart-title">📊 Long-Term (24 Hour Prediction)</div>
-                <canvas id="cryptoLongTermChart"></canvas>
-            </div>
-            
-            <div id="cryptoHistorySection" class="history-section">
-                <h3>📜 Your Crypto Analysis History</h3>
-                <div id="cryptoHistoryList"></div>
+    <!-- Main Layout with Tick ers -->
+    <div class="ticker-layout">
+        <!-- Left Crypto News Ticker -->
+        <div class="news-ticker news-ticker-left">
+            <div class="news-ticker-inner" id="cryptoNewsTicker">
+                <!-- Crypto news items injected here -->
             </div>
         </div>
 
-        <!-- Stock Column -->
-        <div class="column stock-column">
-            <h1>📈 Stock Analyst</h1>
-            <div class="search-bar">
-                <input type="text" id="stockTicker" placeholder="Enter stock ticker (e.g., AAPL, TSLA)">
-                <button onclick="analyzeStock()">Analyze</button>
+        <!-- Center Two-Column Layout -->
+        <div class="two-column-layout">
+            <!-- Crypto Column -->
+            <div class="column crypto-column">
+                <h1>🪙 Crypto Analyst</h1>
+                <div class="search-bar">
+                    <input type="text" id="cryptoSymbol" placeholder="Enter coin symbol (e.g., $TROLL)">
+                    <button onclick="analyzeCrypto()">Analyze</button>
+                </div>
+                <div id="cryptoTrending" class="trending-list"></div>
+
+                <!-- Analysis result first -->
+                <div id="cryptoResult" class="result"></div>
+
+                <!-- Logo after analysis -->
+                <div id="cryptoLogoContainer" style="text-align: center; padding: 50px 20px; background: #262c44; border-radius: 10px; margin-top: 32px;">
+                    <img src="/static/logo.png?v=1" alt="Crypto Logo" style="max-width: 300px; width: 100%; height: auto;">
+                </div>
+                
+                <div id="cryptoShortTermContainer" class="chart-container">
+                    <div class="chart-title">📈 Short-Term (1 Hour Prediction)</div>
+                    <canvas id="cryptoShortTermChart"></canvas>
+                </div>
+                
+                <div id="cryptoLongTermContainer" class="chart-container">
+                    <div class="chart-title">📊 Long-Term (24 Hour Prediction)</div>
+                    <canvas id="cryptoLongTermChart"></canvas>
+                </div>
+                
+                <div id="cryptoHistorySection" class="history-section">
+                    <h3>📜 Your Crypto Analysis History</h3>
+                    <div id="cryptoHistoryList"></div>
+                </div>
             </div>
-            <div id="stockTrending" class="trending-list"></div>
-            
-            <div id="stockLogoContainer" style="text-align: center; padding: 50px 20px; background: #262c44; border-radius: 10px; margin-top: 32px;">
-                <img src="/static/logo.png?v=1" alt="Stock Analyst Logo" style="max-width: 300px; width: 100%; height: auto;">
+
+            <!-- Stock Column -->
+            <div class="column stock-column">
+                <h1>📈 Stock Analyst</h1>
+                <div class="search-bar">
+                    <input type="text" id="stockTicker" placeholder="Enter stock ticker (e.g., AAPL, TSLA)">
+                    <button onclick="analyzeStock()">Analyze</button>
+                </div>
+                <div id="stockTrending" class="trending-list"></div>
+                
+                <div id="stockResult" class="result"></div>
+                
+                <div id="stockLogoContainer" style="text-align: center; padding: 50px 20px; background: #262c44; border-radius: 10px; margin-top: 32px;">
+                    <img src="/static/logo.png?v=1" alt="Stock Analyst Logo" style="max-width: 300px; width: 100%; height: auto;">
+                </div>
+                
+                <div id="stockShortTermContainer" class="chart-container">
+                    <div class="chart-title">📈 Short-Term Prediction</div>
+                    <canvas id="stockShortTermChart"></canvas>
+                </div>
+                
+                <div id="stockLongTermContainer" class="chart-container">
+                    <div class="chart-title">📊 Long-Term Prediction</div>
+                    <canvas id="stockLongTermChart"></canvas>
+                </div>
+                
+                <div id="stockHistorySection" class="history-section">
+                    <h3>📜 Your Stock Analysis History</h3>
+                    <div id="stockHistoryList"></div>
+                </div>
             </div>
-            
-            <div id="stockResult" class="result"></div>
-            
-            <div id="stockShortTermContainer" class="chart-container">
-                <div class="chart-title">📈 Short-Term Prediction</div>
-                <canvas id="stockShortTermChart"></canvas>
-            </div>
-            
-            <div id="stockLongTermContainer" class="chart-container">
-                <div class="chart-title">📊 Long-Term Prediction</div>
-                <canvas id="stockLongTermChart"></canvas>
-            </div>
-            
-            <div id="stockHistorySection" class="history-section">
-                <h3>📜 Your Stock Analysis History</h3>
-                <div id="stockHistoryList"></div>
+        </div>
+
+        <!-- Right Stock News Ticker -->
+        <div class="news-ticker news-ticker-right">
+            <div class="news-ticker-inner" id="stockNewsTicker">
+                <!-- Stock news items injected here -->
             </div>
         </div>
     </div>
@@ -710,6 +786,50 @@
                 document.getElementById("stockTrending").innerHTML = "Trending stocks unavailable.";
             }
         }
+
+        async function loadCryptoNews() {
+            const container = document.getElementById('cryptoNewsTicker');
+            if (!container) return;
+
+            try {
+                const resp = await fetch('/api/crypto-news');
+                const data = await resp.json();
+                const items = (data.news || []).slice(0, 20);
+
+                const html = items.map(n => `
+                    <div class="news-item">
+                        ${n.headline}
+                        <span class="source">${n.source || 'Crypto News'}</span>
+                    </div>
+                `).join('');
+
+                container.innerHTML = html + html;
+            } catch {
+                container.innerHTML = "<div class='news-item'>Crypto news unavailable.</div>";
+            }
+        }
+
+        async function loadStockNews() {
+            const container = document.getElementById('stockNewsTicker');
+            if (!container) return;
+
+            try {
+                const resp = await fetch('/api/market-news');
+                const data = await resp.json();
+                const items = (data.news || []).slice(0, 20);
+
+                const html = items.map(n => `
+                    <div class="news-item">
+                        ${n.headline}
+                        <span class="source">${n.source || 'Market News'}</span>
+                    </div>
+                `).join('');
+
+                container.innerHTML = html + html;
+            } catch {
+                container.innerHTML = "<div class='news-item'>Stock news unavailable.</div>";
+            }
+        }
         
         function quickSearchCrypto(symbol) {
             document.getElementById("cryptoSymbol").value = symbol;
@@ -857,7 +977,6 @@
                     `Prediction: ${data.prediction}\n\n` +
                     `${data.reasoning}`;
 
-                // Optional: show charts if your /api/history is wired
                 if (data.symbol) {
                     showCryptoCharts(data.symbol);
                 }
@@ -898,8 +1017,6 @@
                     `Prediction: ${data.prediction}\n` +
                     `Position: ${data.position_type}\n\n` +
                     `${data.reasoning}`;
-
-                // If you add a stock history endpoint later, you can call showStockCharts here
             } catch (err) {
                 console.error(err);
                 alert("Error analyzing stock");
@@ -912,10 +1029,15 @@
         loadMarketIndices();
         loadCryptoTrending();
         loadStockTrending();
+        loadCryptoNews();
+        loadStockNews();
 
         setInterval(loadSolanaPrice, 60_000);
         setInterval(loadCryptoTrending, 90_000);
         setInterval(loadStockTrending, 120_000);
+        // Optional: refresh news periodically
+        // setInterval(loadCryptoNews, 300_000);
+        // setInterval(loadStockNews, 300_000);
     </script>
 </body>
 </html>
