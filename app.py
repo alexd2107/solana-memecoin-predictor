@@ -1630,7 +1630,6 @@ async def predict(
         raise HTTPException(status_code=500, detail=f"Prediction error: {str(e)}")
 
 # ======================= STOCK PREDICT ENDPOINT =======================
-
 def send_stock_discord_notification(
     ticker: str,
     company_name: Optional[str] = None,
@@ -1685,12 +1684,13 @@ def send_stock_discord_notification(
             embed["fields"].append(
                 {"name": "📍 Position", "value": position_type, "inline": False}
             )
-              payload = {"embeds": [embed]}
+
+        payload = {"embeds": [embed]}
         resp = requests.post(DISCORD_WEBHOOK_STOCK, json=payload, timeout=5)
         print("Discord stock webhook status:", resp.status_code, resp.text[:200])
     except Exception as e:
         print(f"Discord stock notification failed: {e}")
-
+        
 
 @app.get("/api/predict-stock")
 async def predict_stock(
