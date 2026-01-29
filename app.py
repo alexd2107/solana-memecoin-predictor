@@ -1480,6 +1480,12 @@ def predict_stock_trend_with_levels(
 📍 POSITION: {position_type}
 ⚠️ RISK PROFILE: {risk_label}
 
+🎯 TARGET BUY PRICE: ${buy_price:.2f}
+💰 TARGET SELL PRICE: ${take_profit:.2f}
+🛡️ STOP LOSS: ${stop_loss:.2f}
+📈 MAX UPSIDE PRICE: ${max_upside_price:.2f}
+📉 MAX DOWNSIDE PRICE: ${max_downside_price:.2f}
+
 {chr(10).join(reasons)}"""
 
     return {

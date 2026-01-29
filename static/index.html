@@ -329,118 +329,124 @@
         }
         
         function switchToSignup() {
-            document.getElementById('loginForm').style.display = 'none';
-            document.getElementById('signupForm').style.display = 'block';
-            document.getElementById('authTitle').textContent = 'Create Your Account';
-        }
-        
-        function switchToLogin() {
-            document.getElementById('signupForm').style.display = 'none';
-            document.getElementById('loginForm').style.display = 'block';
-            document.getElementById('authTitle').textContent = 'Login to Continue';
-        }
-        
-        async function handleLogin() {
-            const email = document.getElementById('loginEmail').value.trim();
-            const password = document.getElementById('loginPassword').value;
-            
-            if (!email || !password) {
-                alert('Please enter email and password');
-                return;
-            }
-            
-            const isDev = (email === 'dev@memecoinmetrics.com' && password === 'Password');
-            
-            try {
-                let data = null;
-                let ok = false;
+    document.getElementById('loginForm').style.display = 'none';
+    document.getElementById('signupForm').style.display = 'block';
+    document.getElementById('authTitle').textContent = 'Create Your Account';
+}
 
-                if (!isDev) {
-                    const response = await fetch('/api/auth/login', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ email, password })
-                    });
-                    data = await response.json();
-                    ok = response.ok;
-                }
+function switchToLogin() {
+    document.getElementById('signupForm').style.display = 'none';
+    document.getElementById('loginForm').style.display = 'block';
+    document.getElementById('authTitle').textContent = 'Login to Continue';
+}
 
-                if (isDev || ok) {
-                    if (isDev) {
-                        authToken = 'dev-mode-token';
-                        currentUser = { email, username: 'Developer', wallet_address: null, is_dev: true };
-                        alert('🔓 Developer Mode Activated');
-                    } else {
-                        authToken = data.access_token;
-                        currentUser = data.user;
-                        currentUser.is_dev = false;
-                    }
-                    
-                    localStorage.setItem('authToken', authToken);
-                    localStorage.setItem('currentUser', JSON.stringify(currentUser));
-                    
-                    updateAuthUI();
-                    closeAuthModal();
-                    
-                    const accepted = localStorage.getItem('disclaimerAccepted');
-                    if (accepted !== 'true') {
-                        document.getElementById('disclaimerModal').classList.add('active');
-                    }
-                } else {
-                    alert((data && data.detail) || 'Login failed');
-                }
-            } catch (err) {
-                alert('Login error. Please try again.');
-            }
+async function handleLogin() {
+    const email = document.getElementById('loginEmail').value.trim();
+    const password = document.getElementById('loginPassword').value;
+
+    if (!email || !password) {
+        alert('Please enter email and password');
+        return;
+    }
+
+    const isDev = (email === 'dev@memecoinmetrics.com' && password === 'Password');
+
+    try {
+        let data = null;
+        let ok = false;
+
+        if (!isDev) {
+            const response = await fetch('/api/auth/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email, password })
+            });
+
+            data = await response.json();
+            ok = response.ok;
         }
-        
-        async function handleSignup() {
-            const username = document.getElementById('signupUsername').value.trim();
-            const email = document.getElementById('signupEmail').value.trim();
-            const password = document.getElementById('signupPassword').value;
-            
-            if (!username || !email || !password) {
-                alert('Please fill in all fields');
-                return;
+
+        if (isDev || ok) {
+            if (isDev) {
+                authToken = 'dev-mode-token';
+                currentUser = { email, username: 'Developer', wallet_address: null, is_dev: true };
+                alert('🔓 Developer Mode Activated');
+            } else {
+                authToken = data.access_token;
+                currentUser = data.user;
+                currentUser.is_dev = false;
             }
-            
-            try {
-                const response = await fetch('/api/auth/signup', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ email, username, password })
-                });
-                
-                const data = await response.json();
-                
-                if (response.ok) {
-                    authToken = data.access_token;
-                    currentUser = data.user;
-                    currentUser.is_dev = false;
-                    localStorage.setItem('authToken', authToken);
-                    localStorage.setItem('currentUser', JSON.stringify(currentUser));
-                    
-                    updateAuthUI();
-                    closeAuthModal();
-                    document.getElementById('disclaimerModal').classList.add('active');
-                    alert('Account created successfully!');
-                } else {
-                    alert(data.detail || 'Signup failed');
-                }
-            } catch (err) {
-                alert('Signup error. Please try again.');
+
+            localStorage.setItem('authToken', authToken);
+            localStorage.setItem('currentUser', JSON.stringify(currentUser));
+
+            updateAuthUI();
+            closeAuthModal();
+
+            const accepted = localStorage.getItem('disclaimerAccepted');
+            if (accepted !== 'true') {
+                document.getElementById('disclaimerModal').classList.add('active');
             }
+        } else {
+            const detail = (data && (data.detail || data.message)) || 'Login failed';
+            alert(detail);
         }
-        
-        function logout() {
-            authToken = null;
-            currentUser = null;
-            localStorage.removeItem('authToken');
-            localStorage.removeItem('currentUser');
-            localStorage.removeItem('disclaimerAccepted');
-            alert('Logged out successfully');
-            location.reload();
+    } catch (err) {
+        console.error(err);
+        alert('Login error. Please try again.');
+    }
+}
+
+async function handleSignup() {
+    const username = document.getElementById('signupUsername').value.trim();
+    const email = document.getElementById('signupEmail').value.trim();
+    const password = document.getElementById('signupPassword').value;
+
+    if (!username || !email || !password) {
+        alert('Please fill in all fields');
+        return;
+    }
+
+    try {
+        const response = await fetch('/api/auth/signup', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, username, password })
+        });
+
+        const data = await response.json();
+
+        if (response.ok) {
+            authToken = data.access_token;
+            currentUser = data.user;
+            currentUser.is_dev = false;
+
+            localStorage.setItem('authToken', authToken);
+            localStorage.setItem('currentUser', JSON.stringify(currentUser));
+
+            updateAuthUI();
+            closeAuthModal();
+            document.getElementById('disclaimerModal').classList.add('active');
+            alert(data.message || 'Account created successfully!');
+        } else {
+            const detail = data.detail || data.message || 'Signup failed. Please try again.';
+            alert(detail);
         }
+    } catch (err) {
+        console.error(err);
+        alert('Signup error. Please try again.');
+    }
+}
+
+function logout() {
+    authToken = null;
+    currentUser = null;
+    localStorage.removeItem('authToken');
+    localStorage.removeItem('currentUser');
+    localStorage.removeItem('disclaimerAccepted');
+    alert('Logged out successfully');
+    location.reload();
+}
         
         function updateAuthUI() {
             if (currentUser) {
