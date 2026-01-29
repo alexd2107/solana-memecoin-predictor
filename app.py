@@ -1438,27 +1438,51 @@ async def get_crypto_news():
         print(f"Crypto news error: {e}")
         return {"news": []}
 
-
 @app.get("/api/market-news")
 async def get_market_news():
     """
-    Stock/market news feed for the right ticker, using Finnhub 'general' news.
+    Stock/market news feed for the right ticker, using Finnhub 'general' news
+    with a static fallback.
     """
     try:
         url = f"https://finnhub.io/api/v1/news?category=general&token={FINNHUB_API_KEY}"
         resp = requests.get(url, timeout=10)
-        if resp.status_code != 200:
-            print(f"Finnhub market news error: {resp.status_code}")
-            return {"news": []}
-        raw = resp.json() or []
-        news = [
+        raw = []
+        if resp.status_code == 200:
+            raw = resp.json() or []
+        else:
+            print(f"Finnhub market news error: {resp.status_code} {resp.text[:200]}")
+
+        if raw:
+            news = [
+                {
+                    "headline": item.get("headline", "Market update"),
+                    "source": item.get("source", "Finnhub"),
+                    "url": item.get("url"),
+                }
+                for item in raw[:30]
+            ]
+            return {"news": news}
+
+        # fallback if API empty or error
+        fallback = [
             {
-                "headline": item.get("headline", "Market update"),
-                "source": item.get("source", "Finnhub")
-            }
-            for item in raw[:30]
+                "headline": "S&P 500 holds near recent highs",
+                "source": "MarketWire",
+                "url": "https://www.marketwatch.com",
+            },
+            {
+                "headline": "Tech stocks lead midday gains",
+                "source": "TechDaily",
+                "url": "https://www.cnbc.com",
+            },
+            {
+                "headline": "Fed commentary keeps traders cautious",
+                "source": "MacroBrief",
+                "url": "https://www.bloomberg.com",
+            },
         ]
-        return {"news": news}
+        return {"news": fallback}
     except Exception as e:
         print(f"Market news error: {e}")
         return {"news": []}
