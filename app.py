@@ -1802,22 +1802,29 @@ async def get_market_news():
         print(f"Market news error: {e}")
         return {"news": []}
 
-@app.get("/api/solana-price")
-async def get_solana_price():
-    try:
-        url = "https://api.binance.com/api/v3/ticker/24hr?symbol=SOLUSDT"
-        response = requests.get(url, timeout=10)
-        if response.status_code != 200:
-            return {"error": "Failed to fetch SOL price"}
-        
-        data = response.json()
-        price = float(data.get("lastPrice", 0))
-        change = float(data.get("priceChangePercent", 0))
-        
-        return {"price": price, "change_24h": change}
-    except Exception as e:
-        print(f"SOL price error: {e}")
-        return {"error": "Failed to fetch SOL price"}
+async function refreshSolPrice() {
+  try {
+    const res = await fetch('/api/solana-price');
+    const data = await res.json();
+
+    const el = document.getElementById('solPriceBanner'); // span/div where SOL price goes
+    if (!el) return;
+
+    if (res.ok && data && data.price) {
+      el.textContent = `SOL $${data.price.toFixed(2)}`;
+    } else {
+      el.textContent = 'SOL Unavailable';
+    }
+  } catch (e) {
+    const el = document.getElementById('solPriceBanner');
+    if (el) el.textContent = 'SOL Unavailable';
+  }
+}
+
+// initial load + refresh every 30s
+refreshSolPrice();
+setInterval(refreshSolPrice, 30000);
+
 
 
 @app.get("/api/market-indices")
