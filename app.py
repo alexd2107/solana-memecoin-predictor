@@ -1474,7 +1474,7 @@ def predict_stock_trend_with_levels(
         leverage_side = None
         suggested_leverage = 1.0
 
-    reasoning_output = f"""INVESTMENT SCORE: {normalized_score}/{max_score}
+  reasoning_output = f"""INVESTMENT SCORE: {normalized_score}/{max_score}
 
 🎯 PREDICTION: {prediction}
 📍 POSITION: {position_type}
