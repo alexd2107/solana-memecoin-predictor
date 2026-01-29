@@ -758,7 +758,7 @@ function logout() {
         
         async function loadSolanaPrice() {
             try {
-                const response = await fetch('/api/solana-price');
+                const response = await fetch("/api/predict?symbol=SOL");
                 const data = await response.json();
                 if (data.error) {
                     document.getElementById('solPriceValue').textContent = 'Unavailable';
