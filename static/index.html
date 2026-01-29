@@ -6,118 +6,136 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-        body { font-family: 'Segoe UI', Arial, sans-serif; background: linear-gradient(135deg, #181c29 0%, #2f3857 100%); color: #f5f5f5; margin: 0; padding: 0; }
-        .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.9); z-index: 9999; justify-content: center; align-items: center; }
-        .modal-overlay.active { display: flex; }
-        .modal-content { background: #1a1f2e; border-radius: 16px; padding: 40px; max-width: 550px; width: 90%; text-align: center; box-shadow: 0 8px 32px rgba(0,0,0,0.5); border: 2px solid #9945ff; max-height: 80vh; overflow-y: auto; }
-        .modal-content h2 { color: #14f195; margin-top: 0; margin-bottom: 25px; font-size: 2em; }
-        .modal-content h3 { color: #14f195; margin-top: 20px; font-size: 1.5em; }
-        .modal-content p { color: #f5f5f5; line-height: 1.8; margin-bottom: 18px; font-size: 1.05em; }
-        .modal-content .warning { color: #ff6b6b; font-weight: bold; font-size: 1.3em; margin: 20px 0; }
-        .modal-button { background: linear-gradient(90deg, #14f195 0%, #9945ff 100%); color: #fff; border: none; border-radius: 12px; padding: 16px 40px; font-size: 1.2em; cursor: pointer; font-weight: bold; margin-top: 25px; transition: transform 0.2s; }
-        .modal-button:hover { transform: scale(1.05); }
-        .modal-input { width: 100%; padding: 12px; margin: 10px 0; border: none; border-radius: 8px; background: #2f3857; color: #fff; font-size: 1em; box-sizing: border-box; }
-        .modal-input::placeholder { color: #8fa4d5; }
-        .auth-toggle { color: #14f195; cursor: pointer; text-decoration: underline; margin-top: 15px; display: inline-block; }
-        .degen-text { color: #9945ff; font-weight: bold; font-style: italic; }
+    body { font-family: 'Segoe UI', Arial, sans-serif; background: linear-gradient(135deg, #181c29 0%, #2f3857 100%); color: #f5f5f5; margin: 0; padding: 0; }
+    .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.9); z-index: 9999; justify-content: center; align-items: center; }
+    .modal-overlay.active { display: flex; }
+    .modal-content { background: #1a1f2e; border-radius: 16px; padding: 40px; max-width: 550px; width: 90%; text-align: center; box-shadow: 0 8px 32px rgba(0,0,0,0.5); border: 2px solid #9945ff; max-height: 80vh; overflow-y: auto; }
+    .modal-content h2 { color: #14f195; margin-top: 0; margin-bottom: 25px; font-size: 2em; }
+    .modal-content h3 { color: #14f195; margin-top: 20px; font-size: 1.5em; }
+    .modal-content p { color: #f5f5f5; line-height: 1.8; margin-bottom: 18px; font-size: 1.05em; }
+    .modal-content .warning { color: #ff6b6b; font-weight: bold; font-size: 1.3em; margin: 20px 0; }
+    .modal-button { background: linear-gradient(90deg, #14f195 0%, #9945ff 100%); color: #fff; border: none; border-radius: 12px; padding: 16px 40px; font-size: 1.2em; cursor: pointer; font-weight: bold; margin-top: 25px; transition: transform 0.2s; }
+    .modal-button:hover { transform: scale(1.05); }
+    .modal-input { width: 100%; padding: 12px; margin: 10px 0; border: none; border-radius: 8px; background: #2f3857; color: #fff; font-size: 1em; box-sizing: border-box; }
+    .modal-input::placeholder { color: #8fa4d5; }
+    .auth-toggle { color: #14f195; cursor: pointer; text-decoration: underline; margin-top: 15px; display: inline-block; }
+    .degen-text { color: #9945ff; font-weight: bold; font-style: italic; }
 
-        .price-bar { background: linear-gradient(90deg, #14f195 0%, #9945ff 100%); padding: 12px 20px; font-weight: bold; font-size: 1em; box-shadow: 0 2px 8px rgba(0,0,0,0.3); position: sticky; top: 0; z-index: 1000; display: flex; justify-content: space-between; align-items: center; }
-        .price-bar-center { display: flex; gap: 40px; justify-content: center; flex: 1; }
-        .price-bar-right { display: flex; gap: 10px; align-items: center; width: 250px; justify-content: flex-end; }
-        .user-profile { display: flex; align-items: center; gap: 10px; background: rgba(255,255,255,0.1); padding: 8px 15px; border-radius: 8px; cursor: pointer; position: relative; }
-        .user-dropdown { display: none; position: absolute; top: 50px; right: 0; background: #1a1f2e; border-radius: 8px; padding: 15px; min-width: 220px; box-shadow: 0 4px 12px rgba(0,0,0,0.5); z-index: 10000; }
-        .user-dropdown.active { display: block; }
-        .user-dropdown-item { padding: 10px; cursor: pointer; border-radius: 4px; margin: 5px 0; }
-        .user-dropdown-item:hover { background: #2f3857; }
-        .dev-only { border-top: 1px solid #9945ff; margin-top: 10px; padding-top: 10px; }
-        .wallet-btn { background: linear-gradient(90deg, #9945ff 0%, #14f195 100%); color: #fff; border: none; border-radius: 8px; padding: 8px 16px; font-size: 0.95em; cursor: pointer; font-weight: bold; }
-        .auth-btn { background: #5792fe; color: #fff; border: none; border-radius: 8px; padding: 8px 16px; font-size: 0.95em; cursor: pointer; font-weight: bold; }
-        .price-value { color: #fff; font-size: 1.1em; }
-        .price-change { font-size: 0.85em; padding: 3px 7px; border-radius: 4px; background: rgba(255,255,255,0.2); }
-        .price-up { color: #14f195; }
-        .price-down { color: #ff6b6b; }
+    .price-bar { background: linear-gradient(90deg, #14f195 0%, #9945ff 100%); padding: 12px 20px; font-weight: bold; font-size: 1em; box-shadow: 0 2px 8px rgba(0,0,0,0.3); position: sticky; top: 0; z-index: 1000; display: flex; justify-content: space-between; align-items: center; }
+    .price-bar-center { display: flex; gap: 40px; justify-content: center; flex: 1; }
+    .price-bar-right { display: flex; gap: 10px; align-items: center; width: 250px; justify-content: flex-end; }
+    .user-profile { display: flex; align-items: center; gap: 10px; background: rgba(255,255,255,0.1); padding: 8px 15px; border-radius: 8px; cursor: pointer; position: relative; }
+    .user-dropdown { display: none; position: absolute; top: 50px; right: 0; background: #1a1f2e; border-radius: 8px; padding: 15px; min-width: 220px; box-shadow: 0 4px 12px rgba(0,0,0,0.5); z-index: 10000; }
+    .user-dropdown.active { display: block; }
+    .user-dropdown-item { padding: 10px; cursor: pointer; border-radius: 4px; margin: 5px 0; }
+    .user-dropdown-item:hover { background: #2f3857; }
+    .dev-only { border-top: 1px solid #9945ff; margin-top: 10px; padding-top: 10px; }
+    .wallet-btn { background: linear-gradient(90deg, #9945ff 0%, #14f195 100%); color: #fff; border: none; border-radius: 8px; padding: 8px 16px; font-size: 0.95em; cursor: pointer; font-weight: bold; }
+    .auth-btn { background: #5792fe; color: #fff; border: none; border-radius: 8px; padding: 8px 16px; font-size: 0.95em; cursor: pointer; font-weight: bold; }
+    .price-value { color: #fff; font-size: 1.1em; }
+    .price-change { font-size: 0.85em; padding: 3px 7px; border-radius: 4px; background: rgba(255,255,255,0.2); }
+    .price-up { color: #14f195; }
+    .price-down { color: #ff6b6b; }
 
-        .two-column-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; max-width: 1400px; margin: 40px auto; padding: 0 20px; }
-        .column { background: rgba(24, 28, 41, 0.92); border-radius: 16px; box-shadow: 0 2px 24px 0 #0002; padding: 36px 30px; }
-        .column h1 { margin-top: 0; font-size: 2em; text-align: center; }
+    .two-column-layout {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 24px;
+        max-width: 1100px;
+        margin: 40px auto;
+        padding: 0;
+    }
 
-        .search-bar { display: flex; gap: 10px; margin-bottom: 24px; }
-        input[type="text"], input[type="email"], input[type="password"] { flex: 1; padding: 10px; font-size: 1em; border: none; border-radius: 8px; background: #2f3857; color: #fff; }
-        input::placeholder { color: #8fa4d5; }
-        button { background: #5792fe; color: #fff; border: none; border-radius: 8px; padding: 10px 18px; font-size: 1em; cursor: pointer; font-weight: bold; }
-        button:hover { background: #2f76e2; }
+    .column { background: rgba(24, 28, 41, 0.92); border-radius: 16px; box-shadow: 0 2px 24px 0 #0002; padding: 36px 30px; }
+    .column h1 { margin-top: 0; font-size: 2em; text-align: center; }
 
-        .result { margin-top: 32px; font-size: 1.07em; background: #262c44; border-radius: 10px; padding: 22px 16px; min-height: 60px; word-break: break-word; white-space: pre-line; display: none; }
-        .history-section { margin-top: 40px; padding: 20px; background: #1a1f2e; border-radius: 10px; display: none; }
-        .history-section h3 { color: #14f195; margin-top: 0; }
-        .history-item { background: #262c44; padding: 15px; margin: 10px 0; border-radius: 8px; cursor: pointer; }
-        .history-item:hover { background: #2f3857; }
+    .search-bar { display: flex; gap: 10px; margin-bottom: 24px; }
+    input[type="text"], input[type="email"], input[type="password"] { flex: 1; padding: 10px; font-size: 1em; border: none; border-radius: 8px; background: #2f3857; color: #fff; }
+    input::placeholder { color: #8fa4d5; }
+    button { background: #5792fe; color: #fff; border: none; border-radius: 8px; padding: 10px 18px; font-size: 1em; cursor: pointer; font-weight: bold; }
+    button:hover { background: #2f76e2; }
 
-        .trending-list { margin: 24px 0 10px 0; }
-        .trend-row { background: #21273a; margin-bottom: 12px; border-radius: 10px; display: flex; align-items: center; padding: 15px 20px; cursor: pointer; transition: background 0.2s; }
-        .trend-row:hover { background: #2e3651; }
-        .trend-symbol { font-weight: bold; font-size: 1.11em; color: #91fe77; margin-right: 15px; }
-        .trend-price { color: #6fc4fa; font-size: 1em; font-weight: 500; }
+    .result { margin-top: 32px; font-size: 1.07em; background: #262c44; border-radius: 10px; padding: 22px 16px; min-height: 60px; word-break: break-word; white-space: pre-line; display: none; }
+    .history-section { margin-top: 40px; padding: 20px; background: #1a1f2e; border-radius: 10px; display: none; }
+    .history-section h3 { color: #14f195; margin-top: 0; }
+    .history-item { background: #262c44; padding: 15px; margin: 10px 0; border-radius: 8px; cursor: pointer; }
+    .history-item:hover { background: #2f3857; }
 
-        .chart-container { width: 100%; margin: 24px auto 0; display: none; background: #21273a; border-radius: 10px; padding: 20px; }
-        .chart-title { font-size: 1.1em; font-weight: bold; color: #91fe77; margin-bottom: 12px; text-align: center; }
-        canvas { width: 100% !important; height: auto !important; }
+    .trending-list { margin: 24px 0 10px 0; }
+    .trend-row { background: #21273a; margin-bottom: 12px; border-radius: 10px; display: flex; align-items: center; padding: 15px 20px; cursor: pointer; transition: background 0.2s; }
+    .trend-row:hover { background: #2e3651; }
+    .trend-symbol { font-weight: bold; font-size: 1.11em; color: #91fe77; margin-right: 15px; }
+    .trend-price { color: #6fc4fa; font-size: 1em; font-weight: 500; }
 
-        .spinner { display: inline-block; width: 34px; height: 34px; }
-        .spinner:after { content: " "; display: block; width: 24px; height: 24px; margin: 4px auto; border-radius: 50%; border: 4px solid #5792fe; border-color: #5792fe #5792fe #5792fe transparent; animation: spin 1s linear infinite; }
-        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    .chart-container { width: 100%; margin: 24px auto 0; display: none; background: #21273a; border-radius: 10px; padding: 20px; }
+    .chart-title { font-size: 1.1em; font-weight: bold; color: #91fe77; margin-bottom: 12px; text-align: center; }
+    canvas { width: 100% !important; height: auto !important; }
 
-        /* Ticker layout */
-        .ticker-layout {
-            display: grid;
-            grid-template-columns: 220px minmax(0, 1fr) 220px;
-            align-items: stretch;
-        }
+    .spinner { display: inline-block; width: 34px; height: 34px; }
+    .spinner:after { content: " "; display: block; width: 24px; height: 24px; margin: 4px auto; border-radius: 50%; border: 4px solid #5792fe; border-color: #5792fe #5792fe #5792fe transparent; animation: spin 1s linear infinite; }
+    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
 
-        .news-ticker {
-            background: #151827;
-            border-right: 1px solid #262c44;
-            border-left: 1px solid #262c44;
-            overflow: hidden;
-            position: relative;
-        }
-        .news-ticker-left { border-radius: 0 16px 16px 0; }
-        .news-ticker-right { border-radius: 16px 0 0 16px; }
+    /* Ticker layout */
+    .ticker-layout {
+        display: grid;
+        grid-template-columns: 220px minmax(0, 1fr) 220px;
+        align-items: stretch;
+    }
 
-        .news-ticker-inner {
-            display: flex;
-            flex-direction: column;
-            gap: 12px;
-            padding: 16px 10px;
-            animation: ticker-scroll 30s linear infinite;
-        }
-        .news-item {
-            font-size: 0.78rem;
-            line-height: 1.4;
-            color: #c3d0ff;
-            padding: 8px 10px;
-            background: #1e2436;
-            border-radius: 8px;
-        }
-        .news-item span.source {
-            display: block;
-            font-size: 0.7rem;
-            color: #8fa4d5;
-            margin-top: 4px;
-        }
-        @keyframes ticker-scroll {
-            0%   { transform: translateY(0); }
-            100% { transform: translateY(-50%); }
-        }
+    .news-ticker {
+        background: #151827;
+        border-right: 1px solid #262c44;
+        border-left: 1px solid #262c44;
+        overflow: hidden;
+        position: relative;
+    }
+    .news-ticker-left { border-radius: 0 16px 16px 0; }
+    .news-ticker-right { border-radius: 16px 0 0 16px; }
 
-        @media (max-width: 1200px) {
-            .two-column-layout { grid-template-columns: 1fr; }
-        }
-        @media (max-width: 1100px) {
-            .ticker-layout { grid-template-columns: 1fr; }
-            .news-ticker { display: none; }
-        }
-    </style>
+    .news-ticker-inner {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        padding: 16px 10px;
+        animation: ticker-scroll 30s linear infinite;
+    }
+    .news-item {
+        font-size: 0.78rem;
+        line-height: 1.4;
+        color: #c3d0ff;
+        padding: 8px 10px;
+        background: #1e2436;
+        border-radius: 8px;
+    }
+    .news-item span.source {
+        display: block;
+        font-size: 0.7rem;
+        color: #8fa4d5;
+        margin-top: 4px;
+    }
+
+    /* clickable news links */
+    .news-item a {
+        color: #c3d0ff;
+        text-decoration: none;
+    }
+    .news-item a:hover {
+        text-decoration: underline;
+    }
+
+    @keyframes ticker-scroll {
+        0%   { transform: translateY(0); }
+        100% { transform: translateY(-50%); }
+    }
+
+    @media (max-width: 1200px) {
+        .two-column-layout { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 1100px) {
+        .ticker-layout { grid-template-columns: 1fr; }
+        .news-ticker { display: none; }
+    }
+</style>
 </head>
 <body>
     <!-- Disclaimer Modal -->
@@ -787,50 +805,54 @@
             }
         }
 
-        async function loadCryptoNews() {
-            const container = document.getElementById('cryptoNewsTicker');
-            if (!container) return;
+       async function loadCryptoNews() {
+    const container = document.getElementById('cryptoNewsTicker');
+    if (!container) return;
 
-            try {
-                const resp = await fetch('/api/crypto-news');
-                const data = await resp.json();
-                const items = (data.news || []).slice(0, 20);
+    try {
+        const resp = await fetch('/api/crypto-news');
+        const data = await resp.json();
+        const items = (data.news || []).slice(0, 20);
 
-                const html = items.map(n => `
-                    <div class="news-item">
-                        ${n.headline}
-                        <span class="source">${n.source || 'Crypto News'}</span>
-                    </div>
-                `).join('');
+        const html = items.map(n => `
+            <div class="news-item">
+                <a href="${n.url || '#'}" target="_blank" rel="noopener noreferrer">
+                    ${n.headline}
+                </a>
+                <span class="source">${n.source || 'Crypto News'}</span>
+            </div>
+        `).join('');
 
-                container.innerHTML = html + html;
-            } catch {
-                container.innerHTML = "<div class='news-item'>Crypto news unavailable.</div>";
-            }
-        }
+        container.innerHTML = html + html;
+    } catch {
+        container.innerHTML = "<div class='news-item'>Crypto news unavailable.</div>";
+    }
+}
 
-        async function loadStockNews() {
-            const container = document.getElementById('stockNewsTicker');
-            if (!container) return;
+      async function loadStockNews() {
+    const container = document.getElementById('stockNewsTicker');
+    if (!container) return;
 
-            try {
-                const resp = await fetch('/api/market-news');
-                const data = await resp.json();
-                const items = (data.news || []).slice(0, 20);
+    try {
+        const resp = await fetch('/api/market-news');
+        const data = await resp.json();
+        const items = (data.news || []).slice(0, 20);
 
-                const html = items.map(n => `
-                    <div class="news-item">
-                        ${n.headline}
-                        <span class="source">${n.source || 'Market News'}</span>
-                    </div>
-                `).join('');
+        const html = items.map(n => `
+            <div class="news-item">
+                <a href="${n.url || '#'}" target="_blank" rel="noopener noreferrer">
+                    ${n.headline}
+                </a>
+                <span class="source">${n.source || 'Market News'}</span>
+            </div>
+        `).join('');
 
-                container.innerHTML = html + html;
-            } catch {
-                container.innerHTML = "<div class='news-item'>Stock news unavailable.</div>";
-            }
-        }
-        
+        container.innerHTML = html + html;
+    } catch {
+        container.innerHTML = "<div class='news-item'>Stock news unavailable.</div>";
+    }
+}
+
         function quickSearchCrypto(symbol) {
             document.getElementById("cryptoSymbol").value = symbol;
             analyzeCrypto();
