@@ -830,11 +830,11 @@ function logout() {
         }
 
         async function analyzeCrypto() {
-            const symbol = document.getElementById("cryptoSymbol").value.trim();
-            if (!symbol) {
-                alert("Please enter a crypto symbol.");
-                return;
-            }
+            const response = await fetch(
+  `/api/predict?symbol=${encodeURIComponent(symbol)}`,
+  { headers: getAuthHeaders() }
+);
+
 
             document.getElementById("cryptoResult").style.display = "block";
             document.getElementById("cryptoResult").innerHTML = "<div class='spinner'></div> Analyzing crypto...";
@@ -906,11 +906,11 @@ function logout() {
         }
 
         async function analyzeStock() {
-            const ticker = document.getElementById("stockTicker").value.trim().toUpperCase();
-            if (!ticker) {
-                alert("Please enter a stock ticker.");
-                return;
-            }
+            const response = await fetch(
+  `/api/predict-stock?ticker=${encodeURIComponent(ticker)}`,
+  { headers: getAuthHeaders() }
+);
+
 
             document.getElementById("stockResult").style.display = "block";
             document.getElementById("stockResult").innerHTML = "<div class='spinner'></div> Analyzing stock...";
