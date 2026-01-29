@@ -961,20 +961,7 @@ def get_stock_technicals(ticker: str) -> dict:
         return {"rsi": 50, "ma50": 0, "ma200": 0, "trend": "neutral"}
 
 
-def predict_stock_trend(ticker: str, price: float, fundamentals: dict, technicals: dict,
-                        news_sentiment: dict) -> dict:
-    score = 0
-    reasons = []
-    
-    pe = fundamentals.get("pe_ratio", 0)
-    fwd_pe = fundamentals.get("forward_pe", 0)
-    growth = fundamentals.get("revenue_growth", 0)
-    margin = fundamentals.get("profit_margin", 0)
-    debt_to_equity = fundamentals.get("debt_to_equity", 0)
-    roe = fundamentals.get("return_on_equity", 0)
-    analyst_rating = fundamentals.get("analyst_rating", "none")
-    target_price = fundamentals.get("target_price", 0)
-    
+
     rsi = technicals.get("rsi", 50)
     trend = technicals.get("trend", "neutral")
     
@@ -1267,10 +1254,259 @@ def send_stock_discord_notification(ticker: str, company_name: Optional[str] = N
         print(f"Discord stock notification failed: {e}")
 
 
+def predict_stock_trend_with_levels(
+    ticker: str,
+    price: float,
+    fundamentals: dict,
+    technicals: dict,
+    news_sentiment: dict,
+) -> dict:
+    score = 0
+    reasons = []
+
+    pe = fundamentals.get("pe_ratio", 0)
+    fwd_pe = fundamentals.get("forward_pe", 0)
+    growth = fundamentals.get("revenue_growth", 0)
+    margin = fundamentals.get("profit_margin", 0)
+    debt_to_equity = fundamentals.get("debt_to_equity", 0)
+    roe = fundamentals.get("return_on_equity", 0)
+    analyst_rating = fundamentals.get("analyst_rating", "none")
+    target_price = fundamentals.get("target_price", 0)
+
+    rsi = technicals.get("rsi", 50)
+    trend = technicals.get("trend", "neutral")
+
+    sentiment = news_sentiment.get("sentiment", "neutral")
+    sentiment_score = news_sentiment.get("sentiment_score", 0)
+
+    # valuation
+    if 10 <= pe <= 30 or 10 <= fwd_pe <= 30:
+        score += 2
+        reasons.append("✅ Reasonable P/E valuation (+2)")
+    elif pe < 0 and fwd_pe > 0:
+        score += 1
+        reasons.append("⚠️ Negative earnings but improving forward P/E (+1)")
+    else:
+        reasons.append("⚠️ P/E outside ideal range (0)")
+
+    # growth
+    if growth > 0.15:
+        score += 3
+        reasons.append(f"✅ Strong revenue growth ({growth*100:.1f}%) (+3)")
+    elif growth > 0.05:
+        score += 2
+        reasons.append(f"✅ Moderate revenue growth ({growth*100:.1f}%) (+2)")
+    elif growth > 0:
+        score += 1
+        reasons.append(f"⚡ Low positive revenue growth ({growth*100:.1f}%) (+1)")
+    else:
+        reasons.append(f"❌ Flat/negative revenue growth ({growth*100:.1f}%) (0)")
+
+    # margins
+    if margin > 0.15:
+        score += 2
+        reasons.append(f"✅ Healthy profit margin ({margin*100:.1f}%) (+2)")
+    elif margin > 0.05:
+        score += 1
+        reasons.append(f"⚡ Thin profit margin ({margin*100:.1f}%) (+1)")
+    else:
+        reasons.append(f"⚠️ Weak or negative profit margin ({margin*100:.1f}%) (0)")
+
+    # balance sheet
+    if 0 < debt_to_equity < 100:
+        score += 2
+        reasons.append(f"✅ Reasonable leverage (Debt/Equity {debt_to_equity:.0f}) (+2)")
+    elif debt_to_equity >= 200:
+        score -= 1
+        reasons.append(f"❌ High leverage (Debt/Equity {debt_to_equity:.0f}) (-1)")
+    else:
+        reasons.append(f"⚠️ Leverage profile mixed (Debt/Equity {debt_to_equity:.0f}) (0)")
+
+    # ROE
+    if roe > 0.15:
+        score += 2
+        reasons.append(f"✅ Strong return on equity ({roe*100:.1f}%) (+2)")
+    elif roe > 0.05:
+        score += 1
+        reasons.append(f"⚡ Moderate ROE ({roe*100:.1f}%) (+1)")
+    else:
+        reasons.append(f"⚠️ Weak ROE ({roe*100:.1f}%) (0)")
+
+    # RSI
+    if rsi < 30:
+        score += 2
+        reasons.append(f"✅ RSI {rsi:.1f} — oversold zone (+2)")
+    elif 30 <= rsi <= 70:
+        score += 1
+        reasons.append(f"⚡ RSI {rsi:.1f} — neutral/healthy (+1)")
+    else:
+        score -= 1
+        reasons.append(f"❌ RSI {rsi:.1f} — overbought zone (-1)")
+
+    # trend
+    if trend == "bullish":
+        score += 2
+        reasons.append("✅ Price above key moving averages — bullish trend (+2)")
+    elif trend == "bearish":
+        score -= 1
+        reasons.append("❌ Price below key moving averages — bearish trend (-1)")
+    else:
+        reasons.append("⚠️ Mixed/sideways technical trend (0)")
+
+    # news
+    if sentiment == "bullish":
+        if sentiment_score >= 5:
+            score += 3
+            reasons.append(f"✅ News sentiment: strong bullish (score {sentiment_score}) (+3)")
+        else:
+            score += 2
+            reasons.append(f"✅ News sentiment: bullish (score {sentiment_score}) (+2)")
+    elif sentiment == "bearish":
+        if sentiment_score <= -5:
+            score -= 3
+            reasons.append(f"❌ News sentiment: strongly bearish (score {sentiment_score}) (-3)")
+        else:
+            score -= 2
+            reasons.append(f"❌ News sentiment: bearish (score {sentiment_score}) (-2)")
+    else:
+        reasons.append("⚠️ News sentiment: neutral/unclear (0)")
+
+    # analyst rating
+    if analyst_rating in ["strong_buy", "buy"]:
+        score += 2
+        reasons.append(f"✅ Analyst consensus: {analyst_rating.replace('_', ' ').title()} (+2)")
+    elif analyst_rating in ["hold"]:
+        score += 1
+        reasons.append("⚡ Analyst consensus: Hold (+1)")
+    elif analyst_rating in ["sell", "strong_sell"]:
+        score -= 2
+        reasons.append(f"❌ Analyst consensus: {analyst_rating.replace('_', ' ').title()} (-2)")
+    else:
+        reasons.append("⚠️ Analyst rating: not available (0)")
+
+    # analyst target vs current
+    if target_price and target_price > 0:
+        upside = (target_price - price) / price
+        if upside > 0.3:
+            score += 2
+            reasons.append(f"✅ Analyst target implies {upside*100:.0f}% upside (+2)")
+        elif upside > 0.1:
+            score += 1
+            reasons.append(f"⚡ Analyst target implies {upside*100:.0f}% upside (+1)")
+        elif upside < -0.1:
+            score -= 1
+            reasons.append(f"❌ Analyst target below current price ({upside*100:.0f}% downside) (-1)")
+        else:
+            reasons.append(f"⚠️ Analyst target near current price ({upside*100:.0f}% move) (0)")
+    else:
+        reasons.append("⚠️ No clear analyst target price (0)")
+
+    max_score = 20
+    normalized_score = max(0, min(max_score, score))
+
+    if normalized_score >= 15:
+        prediction = "🏆 STRONG BUY"
+        position_type = "AGGRESSIVE LONG"
+        risk_label = "LOW–MODERATE RISK"
+    elif normalized_score >= 11:
+        prediction = "✅ BUY"
+        position_type = "STANDARD LONG"
+        risk_label = "MODERATE RISK"
+    elif normalized_score >= 7:
+        prediction = "⚖️ HOLD / NEUTRAL"
+        position_type = "NEUTRAL / WAIT"
+        risk_label = "BALANCED RISK"
+    elif normalized_score >= 4:
+        prediction = "⚠️ WEAK / TRIM"
+        position_type = "REDUCE / AVOID NEW ENTRIES"
+        risk_label = "ELEVATED RISK"
+    else:
+        prediction = "❌ AVOID"
+        position_type = "NO POSITION / EXIT"
+        risk_label = "HIGH RISK"
+
+    # trade levels + leverage
+    direction = "avoid"
+    should_buy_now = False
+    use_leverage = False
+    leverage_side = None
+    suggested_leverage = 1.0
+
+    buy_price = price
+    risk_pct = 0.03
+    stop_loss = buy_price * (1 - risk_pct)
+    take_profit = buy_price * (1 + 2 * risk_pct)
+
+    reward = take_profit - buy_price
+    risk = buy_price - stop_loss
+    rr = reward / risk if risk > 0 else 0
+
+    max_upside_price = buy_price * 1.15
+    max_downside_price = buy_price * 0.85
+
+    if target_price and target_price > 0:
+        if target_price > max_upside_price:
+            max_upside_price = target_price
+        elif target_price < max_downside_price:
+            max_downside_price = target_price
+
+    if prediction in ("🏆 STRONG BUY", "✅ BUY") and rr >= 2:
+        direction = "long"
+        should_buy_now = True
+        if normalized_score >= 15:
+            use_leverage = True
+            leverage_side = "long"
+            suggested_leverage = 1.5
+        else:
+            use_leverage = False
+            leverage_side = "long"
+            suggested_leverage = 1.0
+    elif prediction == "⚖️ HOLD / NEUTRAL":
+        direction = "long"
+        should_buy_now = False
+        use_leverage = False
+        leverage_side = "long"
+        suggested_leverage = 1.0
+    else:
+        direction = "avoid"
+        should_buy_now = False
+        use_leverage = False
+        leverage_side = None
+        suggested_leverage = 1.0
+
+    reasoning_output = f"""INVESTMENT SCORE: {normalized_score}/{max_score}
+
+🎯 PREDICTION: {prediction}
+📍 POSITION: {position_type}
+⚠️ RISK PROFILE: {risk_label}
+
+{chr(10).join(reasons)}"""
+
+    return {
+        "prediction": prediction,
+        "position_type": position_type,
+        "score": normalized_score,
+        "max_score": max_score,
+        "reasoning": reasoning_output,
+        "direction": direction,
+        "should_buy_now": should_buy_now,
+        "buy_price": buy_price,
+        "stop_loss": stop_loss,
+        "take_profit": take_profit,
+        "max_upside_price": max_upside_price,
+        "max_downside_price": max_downside_price,
+        "use_leverage": use_leverage,
+        "leverage_side": leverage_side,
+        "suggested_leverage": suggested_leverage,
+    }
+
+
 @app.get("/api/predict-stock")
-async def predict_stock(ticker: str,
-                        credentials: Optional[HTTPAuthorizationCredentials] = Depends(HTTPBearer(auto_error=False)),
-                        db: Session = Depends(get_db)):
+async def predict_stock(
+    ticker: str,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(HTTPBearer(auto_error=False)),
+    db: Session = Depends(get_db),
+):
     try:
         user: Optional[User] = None
         if credentials:
@@ -1278,28 +1514,30 @@ async def predict_stock(ticker: str,
                 user = get_current_user(credentials, db)
             except HTTPException:
                 user = None
-        
+
         data = get_stock_data(ticker)
         if not data:
             raise HTTPException(status_code=404, detail="Stock not found")
-        
+
         price = data["price"]
         fundamentals = get_stock_fundamentals(ticker)
         technicals = get_stock_technicals(ticker)
         news_articles = get_stock_news(ticker)
         news_sentiment = analyze_news_sentiment(ticker, news_articles)
-        
-        prediction_result = predict_stock_trend(ticker, price, fundamentals, technicals, news_sentiment)
-        
+
+        prediction_result = predict_stock_trend_with_levels(
+            ticker, price, fundamentals, technicals, news_sentiment
+        )
+
         send_stock_discord_notification(
             ticker=ticker,
             company_name=data["name"],
             price=price,
             prediction=prediction_result["prediction"],
             sector=data["sector"],
-            position_type=prediction_result["position_type"]
+            position_type=prediction_result["position_type"],
         )
-        
+
         if user and db:
             try:
                 save_analysis_to_history(
@@ -1308,14 +1546,16 @@ async def predict_stock(ticker: str,
                     symbol=ticker,
                     name=data["name"],
                     price=price,
-                    prediction=prediction_result['prediction'],
-                    confidence=int(prediction_result['score'] / prediction_result['max_score'] * 100),
+                    prediction=prediction_result["prediction"],
+                    confidence=int(
+                        prediction_result["score"] / prediction_result["max_score"] * 100
+                    ),
                     position_type=prediction_result["position_type"],
-                    db=db
+                    db=db,
                 )
             except Exception as e:
                 print(f"Failed to save stock analysis history: {e}")
-        
+
         return {
             "ticker": ticker,
             "name": data["name"],
@@ -1327,7 +1567,17 @@ async def predict_stock(ticker: str,
             "score": prediction_result["score"],
             "max_score": prediction_result["max_score"],
             "reasoning": prediction_result["reasoning"],
-            "news_sentiment": news_sentiment
+            "news_sentiment": news_sentiment,
+            "direction": prediction_result["direction"],
+            "should_buy_now": prediction_result["should_buy_now"],
+            "buy_price": prediction_result["buy_price"],
+            "stop_loss": prediction_result["stop_loss"],
+            "take_profit": prediction_result["take_profit"],
+            "max_upside_price": prediction_result["max_upside_price"],
+            "max_downside_price": prediction_result["max_downside_price"],
+            "use_leverage": prediction_result["use_leverage"],
+            "leverage_side": prediction_result["leverage_side"],
+            "suggested_leverage": prediction_result["suggested_leverage"],
         }
     except HTTPException as he:
         raise he
@@ -1402,6 +1652,7 @@ async def get_latest_tokens():
     except Exception as e:
         print(f"Latest tokens error: {e}")
         return {"tokens": []}
+
 
 
 @app.get("/api/trending-stocks")
