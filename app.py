@@ -1474,8 +1474,6 @@ def predict_stock_trend_with_levels(
         leverage_side = None
         suggested_leverage = 1.0
 
-  reasoning_output = f"""INVESTMENT SCORE: {normalized_score}/{max_score}
-
     reasoning_output = f"""INVESTMENT SCORE: {normalized_score}/{max_score}
 
 🎯 PREDICTION: {prediction}
@@ -1487,9 +1485,6 @@ def predict_stock_trend_with_levels(
 🛡️ STOP LOSS: ${stop_loss:.2f}
 📈 MAX UPSIDE PRICE: ${max_upside_price:.2f}
 📉 MAX DOWNSIDE PRICE: ${max_downside_price:.2f}
-
-{chr(10).join(reasons)}"""
-
 
 {chr(10).join(reasons)}"""
 
@@ -1826,7 +1821,7 @@ async function refreshSolPrice() {
   }
 }
 
-// initial load + refresh every 30s
+#initial load + refresh every 30s
 refreshSolPrice();
 setInterval(refreshSolPrice, 30000);
 
