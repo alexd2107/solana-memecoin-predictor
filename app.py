@@ -1336,31 +1336,68 @@ async def predict_stock(ticker: str,
 
 # ======================= SUPPORTING ENDPOINTS =======================
 
+import requests
+
+ADDRESS_SYMBOL_MAP = {
+    "8Jx8AAHj86wbQgUTjGuj6GTTL5Ps3cqxKRTvpaJApump": "PENGUIN",  # was BONK
+    "x95HN3DWvbfCBtTjGm587z8suK3ec6cwQwgZNLbWKyp": "HACHI",
+    "GtDZKAqvMZMnti46ZewMiXCa4oXF4bZxwQPoKzXPFxZn": "SHITCOIN",
+    "GaPbGp23pPuY9QBLPUjUEBn2MKEroTe9Q3M3f2Xpump": "WIF",
+    "DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263": "BONK",     # was BONK2
+    "EKpQGSJtjMFqKZ9KQanSqYXRcF8fBopzLHYxdM65zcjm": "NUB",
+    "5UUH9RTDiSpq6HKS6bp4NdU9PNJpXRXuiw6ShBTBhgH2": "TROLL",
+}
+
 @app.get("/api/latest-tokens")
 async def get_latest_tokens():
     try:
-        url = "https://api.dexscreener.com/latest/dex/search?q=SOL"
+        addresses = ",".join(ADDRESS_SYMBOL_MAP.keys())
+        url = f"https://api.dexscreener.com/latest/dex/tokens/{addresses}"
         response = requests.get(url, timeout=10)
         if response.status_code != 200:
             return {"tokens": []}
-        
-        data = response.json()
+
+        data = response.json() or {}
         pairs = data.get("pairs", []) or []
-        
-        tokens = []
-        for p in pairs[:10]:
-            base = p.get("baseToken", {})
-            symbol = base.get("symbol", "N/A")
+
+        tokens_by_addr = {}
+
+        for p in pairs:
+            base = p.get("baseToken", {}) or {}
+            quote = p.get("quoteToken", {}) or {}
+            addr = base.get("address")
             price = p.get("priceUsd")
-            if price:
-                try:
-                    price_str = f"${float(price):.6f}" if float(price) < 1 else f"${float(price):.4f}"
-                except Exception:
-                    price_str = f"${price}"
+            quote_symbol = (quote.get("symbol") or "").upper()
+
+            if addr not in ADDRESS_SYMBOL_MAP or price is None:
+                continue
+
+            try:
+                price_f = float(price)
+                price_str = f"${price_f:.6f}" if price_f < 1 else f"${price_f:.4f}"
+            except Exception:
+                price_str = f"{price}"
+
+            existing = tokens_by_addr.get(addr)
+            if existing:
+                prev_quote = existing.get("quote_symbol", "")
+                if prev_quote in ("SOL", "USDC", "USDT"):
+                    continue
+
+            tokens_by_addr[addr] = {
+                "symbol": ADDRESS_SYMBOL_MAP[addr],
+                "price": price_str,
+                "quote_symbol": quote_symbol,
+            }
+
+        tokens = []
+        for addr in ADDRESS_SYMBOL_MAP.keys():
+            t = tokens_by_addr.get(addr)
+            if t:
+                tokens.append({"symbol": t["symbol"], "price": t["price"]})
             else:
-                price_str = "N/A"
-            tokens.append({"symbol": symbol, "price": price_str})
-        
+                tokens.append({"symbol": ADDRESS_SYMBOL_MAP[addr], "price": "N/A"})
+
         return {"tokens": tokens}
     except Exception as e:
         print(f"Latest tokens error: {e}")
@@ -1374,14 +1411,15 @@ async def get_trending_stocks():
         stocks = []
         for t in popular:
             data = get_stock_data(t)
-            if not data:
-                continue
-            price = data["price"]
-            stocks.append({"ticker": t, "price": f"${price:.2f}"})
+            if data:
+                price_str = f"${data['price']:.2f}"
+            else:
+                price_str = "--"
+            stocks.append({"ticker": t, "price": price_str})
         return {"stocks": stocks}
     except Exception as e:
         print(f"Trending stocks error: {e}")
-        return {"stocks": []}
+        return {"stocks": [{"ticker": t, "price": "--"} for t in ["AAPL", "TSLA", "NVDA", "MSFT", "GOOGL", "AMZN"]]}
 
 
 @app.get("/api/token-info")
@@ -1427,11 +1465,31 @@ async def get_crypto_news():
     """
     try:
         news = [
-            {"headline": "Solana memecoins see surge in volume", "source": "On‑chain Watch"},
-            {"headline": "New Solana DEX launches zero‑fee trading", "source": "Solana News"},
-            {"headline": "DeFi TVL climbs to new monthly high", "source": "DeFiPulse"},
-            {"headline": "BTC breaks key resistance level", "source": "MarketWire"},
-            {"headline": "AI agents begin auto‑trading memecoins", "source": "MemeBots"}
+            {
+                "headline": "Solana memecoins see surge in volume",
+                "source": "On‑chain Watch",
+                "url": "https://dexscreener.com/solana"  # or any article
+            },
+            {
+                "headline": "New Solana DEX launches zero‑fee trading",
+                "source": "Solana News",
+                "url": "https://solana.com"
+            },
+            {
+                "headline": "DeFi TVL climbs to new monthly high",
+                "source": "DeFiPulse",
+                "url": "https://defipulse.com"
+            },
+            {
+                "headline": "BTC breaks key resistance level",
+                "source": "MarketWire",
+                "url": "https://www.coindesk.com"
+            },
+            {
+                "headline": "AI agents begin auto‑trading memecoins",
+                "source": "MemeBots",
+                "url": "https://twitter.com"
+            }
         ]
         return {"news": news}
     except Exception as e:
