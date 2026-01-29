@@ -1685,9 +1685,9 @@ def send_stock_discord_notification(
             embed["fields"].append(
                 {"name": "📍 Position", "value": position_type, "inline": False}
             )
-
-        payload = {"embeds": [embed]}
-        requests.post(DISCORD_WEBHOOK_STOCK, json=payload, timeout=5)
+              payload = {"embeds": [embed]}
+        resp = requests.post(DISCORD_WEBHOOK_STOCK, json=payload, timeout=5)
+        print("Discord stock webhook status:", resp.status_code, resp.text[:200])
     except Exception as e:
         print(f"Discord stock notification failed: {e}")
 
