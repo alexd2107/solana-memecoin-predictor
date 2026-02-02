@@ -828,82 +828,103 @@ function logout() {
                 document.getElementById("stockTrending").innerHTML = "Trending stocks unavailable.";
             }
         }
+async function analyzeCrypto() {
+  let symbol = document
+    .getElementById("cryptoSymbol")
+    .value
+    .trim()
+    .toUpperCase();
 
-        async function analyzeCrypto() {
-            const response = await fetch(
-  `/api/predict?symbol=${encodeURIComponent(symbol)}`,
-  { headers: getAuthHeaders() }
-);
+  if (symbolToAddress[symbol]) {
+    symbol = symbolToAddress[symbol];
+  }
+  if (!symbol) {
+    alert("Please enter a crypto symbol or address");
+    return;
+  }
 
+  const resultEl = document.getElementById("cryptoResult");
+  resultEl.style.display = "block";
+  resultEl.innerHTML = "<div class='spinner'></div> Analyzing crypto...";
 
-            document.getElementById("cryptoResult").style.display = "block";
-            document.getElementById("cryptoResult").innerHTML = "<div class='spinner'></div> Analyzing crypto...";
+  try {
+    const response = await fetch(
+      `/api/predict?symbol=${encodeURIComponent(symbol)}`,
+      { headers: getAuthHeaders() }
+    );
+    const data = await response.json();
 
-            try {
-                const response = await fetch(`/api/analyze-crypto?symbol=${encodeURIComponent(symbol)}`, {
-                    headers: getAuthHeaders()
-                });
-                const data = await response.json();
+    if (!response.ok) {
+      resultEl.innerHTML = `<span style="color:#ff6b6b;">Error: ${
+        data.detail || "Failed to analyze crypto."
+      }</span>`;
+      return;
+    }
 
-                if (!response.ok) {
-                    document.getElementById("cryptoResult").innerHTML = `<span style="color:#ff6b6b;">Error: ${data.detail || "Failed to analyze crypto."}</span>`;
-                    return;
-                }
+    resultEl.innerText =
+      data.analysis || data.prediction || "No analysis returned.";
 
-                document.getElementById("cryptoResult").innerText = data.analysis || data.prediction || "No analysis returned.";
+    if (data.short_term && data.short_term.length > 0) {
+      const labels = data.short_term.map((p) => p.time);
+      const prices = data.short_term.map((p) => p.price);
 
-                if (data.short_term && data.short_term.length > 0) {
-                    const labels = data.short_term.map(p => p.time);
-                    const prices = data.short_term.map(p => p.price);
+      if (cryptoShortTermChart) cryptoShortTermChart.destroy();
+      const ctx1 = document
+        .getElementById("cryptoShortTermChart")
+        .getContext("2d");
+      cryptoShortTermChart = new Chart(ctx1, {
+        type: "line",
+        data: {
+          labels,
+          datasets: [
+            {
+              label: "Price",
+              data: prices,
+              borderColor: "#6fc4fa",
+              backgroundColor: "rgba(111,196,250,0.15)",
+              tension: 0.25,
+              fill: true,
+            },
+          ],
+        },
+        options: getChartOptions(true),
+      });
+      document.getElementById("cryptoShortTermContainer").style.display =
+        "block";
+    }
 
-                    if (cryptoShortTermChart) cryptoShortTermChart.destroy();
-                    const ctx1 = document.getElementById("cryptoShortTermChart").getContext("2d");
-                    cryptoShortTermChart = new Chart(ctx1, {
-                        type: "line",
-                        data: {
-                            labels,
-                            datasets: [{
-                                label: "Price",
-                                data: prices,
-                                borderColor: "#6fc4fa",
-                                backgroundColor: "rgba(111,196,250,0.15)",
-                                tension: 0.25,
-                                fill: true
-                            }]
-                        },
-                        options: getChartOptions(true)
-                    });
-                    document.getElementById("cryptoShortTermContainer").style.display = "block";
-                }
+    if (data.long_term && data.long_term.length > 0) {
+      const labels = data.long_term.map((p) => p.time);
+      const prices = data.long_term.map((p) => p.price);
 
-                if (data.long_term && data.long_term.length > 0) {
-                    const labels = data.long_term.map(p => p.time);
-                    const prices = data.long_term.map(p => p.price);
-
-                    if (cryptoLongTermChart) cryptoLongTermChart.destroy();
-                    const ctx2 = document.getElementById("cryptoLongTermChart").getContext("2d");
-                    cryptoLongTermChart = new Chart(ctx2, {
-                        type: "line",
-                        data: {
-                            labels,
-                            datasets: [{
-                                label: "Price",
-                                data: prices,
-                                borderColor: "#91fe77",
-                                backgroundColor: "rgba(145,254,119,0.15)",
-                                tension: 0.25,
-                                fill: true
-                            }]
-                        },
-                        options: getChartOptions(false)
-                    });
-                    document.getElementById("cryptoLongTermContainer").style.display = "block";
-                }
-
-            } catch (err) {
-                document.getElementById("cryptoResult").innerHTML = `<span style="color:#ff6b6b;">Error: ${err.message}</span>`;
-            }
-        }
+      if (cryptoLongTermChart) cryptoLongTermChart.destroy();
+      const ctx2 = document
+        .getElementById("cryptoLongTermChart")
+        .getContext("2d");
+      cryptoLongTermChart = new Chart(ctx2, {
+        type: "line",
+        data: {
+          labels,
+          datasets: [
+            {
+              label: "Price",
+              data: prices,
+              borderColor: "#91fe77",
+              backgroundColor: "rgba(145,254,119,0.15)",
+              tension: 0.25,
+              fill: true,
+            },
+          ],
+        },
+        options: getChartOptions(false),
+      });
+      document.getElementById("cryptoLongTermContainer").style.display =
+        "block";
+    }
+  } catch (err) {
+    resultEl.innerHTML = `<span style="color:#ff6b6b;">Error: ${err.message}</span>`;
+  }
+}
 
         async function analyzeStock() {
             const response = await fetch(
