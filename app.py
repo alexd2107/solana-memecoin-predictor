@@ -1611,7 +1611,7 @@ async def predict(
             except Exception as e:
                 print(f"Failed to save crypto analysis history: {e}")
 
-        return {
+                return {
             "symbol": base_symbol,
             "name": token_name,
             "price": price,
@@ -1623,7 +1623,11 @@ async def predict(
             "highest_price": prediction_result["highest_price"],
             "lowest_price": prediction_result["lowest_price"],
             "chart_analysis": chart_analysis,
+            "onchain_info": onchain_info,
+            "holder_metrics": holder_metrics,
+            "creator_history": creator_history,
         }
+
     except HTTPException as he:
         raise he
     except Exception as e:
