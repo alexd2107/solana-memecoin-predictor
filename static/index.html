@@ -1,142 +1,503 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <title>Market Metrics - Crypto & Stocks</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-    body { font-family: 'Segoe UI', Arial, sans-serif; background: linear-gradient(135deg, #181c29 0%, #2f3857 100%); color: #f5f5f5; margin: 0; padding: 0; }
-    .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.9); z-index: 9999; justify-content: center; align-items: center; }
-    .modal-overlay.active { display: flex; }
-    .modal-content { background: #1a1f2e; border-radius: 16px; padding: 40px; max-width: 550px; width: 90%; text-align: center; box-shadow: 0 8px 32px rgba(0,0,0,0.5); border: 2px solid #9945ff; max-height: 80vh; overflow-y: auto; }
-    .modal-content h2 { color: #14f195; margin-top: 0; margin-bottom: 25px; font-size: 2em; }
-    .modal-content h3 { color: #14f195; margin-top: 20px; font-size: 1.5em; }
-    .modal-content p { color: #f5f5f5; line-height: 1.8; margin-bottom: 18px; font-size: 1.05em; }
-    .modal-content .warning { color: #ff6b6b; font-weight: bold; font-size: 1.3em; margin: 20px 0; }
-    .modal-button { background: linear-gradient(90deg, #14f195 0%, #9945ff 100%); color: #fff; border: none; border-radius: 12px; padding: 16px 40px; font-size: 1.2em; cursor: pointer; font-weight: bold; margin-top: 25px; transition: transform 0.2s; }
-    .modal-button:hover { transform: scale(1.05); }
-    .modal-input { width: 100%; padding: 12px; margin: 10px 0; border: none; border-radius: 8px; background: #2f3857; color: #fff; font-size: 1em; box-sizing: border-box; }
-    .modal-input::placeholder { color: #8fa4d5; }
-    .auth-toggle { color: #14f195; cursor: pointer; text-decoration: underline; margin-top: 15px; display: inline-block; }
-    .degen-text { color: #9945ff; font-weight: bold; font-style: italic; }
+        body {
+            font-family: 'Segoe UI', Arial, sans-serif;
+            background: linear-gradient(135deg, #181c29 0%, #2f3857 100%);
+            color: #f5f5f5;
+            margin: 0;
+            padding: 0;
+        }
 
-    .price-bar { background: linear-gradient(90deg, #14f195 0%, #9945ff 100%); padding: 12px 20px; font-weight: bold; font-size: 1em; box-shadow: 0 2px 8px rgba(0,0,0,0.3); position: sticky; top: 0; z-index: 1000; display: flex; justify-content: space-between; align-items: center; }
-    .price-bar-center { display: flex; gap: 40px; justify-content: center; flex: 1; }
-    .price-bar-right { display: flex; gap: 10px; align-items: center; width: 250px; justify-content: flex-end; }
-    .user-profile { display: flex; align-items: center; gap: 10px; background: rgba(255,255,255,0.1); padding: 8px 15px; border-radius: 8px; cursor: pointer; position: relative; }
-    .user-dropdown { display: none; position: absolute; top: 50px; right: 0; background: #1a1f2e; border-radius: 8px; padding: 15px; min-width: 220px; box-shadow: 0 4px 12px rgba(0,0,0,0.5); z-index: 10000; }
-    .user-dropdown.active { display: block; }
-    .user-dropdown-item { padding: 10px; cursor: pointer; border-radius: 4px; margin: 5px 0; }
-    .user-dropdown-item:hover { background: #2f3857; }
-    .dev-only { border-top: 1px solid #9945ff; margin-top: 10px; padding-top: 10px; }
-    .wallet-btn { background: linear-gradient(90deg, #9945ff 0%, #14f195 100%); color: #fff; border: none; border-radius: 8px; padding: 8px 16px; font-size: 0.95em; cursor: pointer; font-weight: bold; }
-    .auth-btn { background: #5792fe; color: #fff; border: none; border-radius: 8px; padding: 8px 16px; font-size: 0.95em; cursor: pointer; font-weight: bold; }
-    .price-value { color: #fff; font-size: 1.1em; }
-    .price-change { font-size: 0.85em; padding: 3px 7px; border-radius: 4px; background: rgba(255,255,255,0.2); }
-    .price-up { color: #14f195; }
-    .price-down { color: #ff6b6b; }
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.9);
+            z-index: 9999;
+            justify-content: center;
+            align-items: center;
+        }
 
-    .two-column-layout {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 24px;
-        max-width: 1100px;
-        margin: 40px auto;
-        padding: 0;
-    }
+        .modal-overlay.active {
+            display: flex;
+        }
 
-    .column { background: rgba(24, 28, 41, 0.92); border-radius: 16px; box-shadow: 0 2px 24px 0 #0002; padding: 36px 30px; }
-    .column h1 { margin-top: 0; font-size: 2em; text-align: center; }
+        .modal-content {
+            background: #1a1f2e;
+            border-radius: 16px;
+            padding: 40px;
+            max-width: 550px;
+            width: 90%;
+            text-align: center;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+            border: 2px solid #9945ff;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
 
-    .search-bar { display: flex; gap: 10px; margin-bottom: 24px; }
-    input[type="text"], input[type="email"], input[type="password"] { flex: 1; padding: 10px; font-size: 1em; border: none; border-radius: 8px; background: #2f3857; color: #fff; }
-    input::placeholder { color: #8fa4d5; }
-    button { background: #5792fe; color: #fff; border: none; border-radius: 8px; padding: 10px 18px; font-size: 1em; cursor: pointer; font-weight: bold; }
-    button:hover { background: #2f76e2; }
+        .modal-content h2 {
+            color: #14f195;
+            margin-top: 0;
+            margin-bottom: 25px;
+            font-size: 2em;
+        }
 
-    .result { margin-top: 32px; font-size: 1.07em; background: #262c44; border-radius: 10px; padding: 22px 16px; min-height: 60px; word-break: break-word; white-space: pre-line; display: none; }
-    .history-section { margin-top: 40px; padding: 20px; background: #1a1f2e; border-radius: 10px; display: none; }
-    .history-section h3 { color: #14f195; margin-top: 0; }
-    .history-item { background: #262c44; padding: 15px; margin: 10px 0; border-radius: 8px; cursor: pointer; }
-    .history-item:hover { background: #2f3857; }
+        .modal-content h3 {
+            color: #14f195;
+            margin-top: 20px;
+            font-size: 1.5em;
+        }
 
-    .trending-list { margin: 24px 0 10px 0; }
-    .trend-row { background: #21273a; margin-bottom: 12px; border-radius: 10px; display: flex; align-items: center; padding: 15px 20px; cursor: pointer; transition: background 0.2s; }
-    .trend-row:hover { background: #2e3651; }
-    .trend-symbol { font-weight: bold; font-size: 1.11em; color: #91fe77; margin-right: 15px; }
-    .trend-price { color: #6fc4fa; font-size: 1em; font-weight: 500; }
+        .modal-content p {
+            color: #f5f5f5;
+            line-height: 1.8;
+            margin-bottom: 18px;
+            font-size: 1.05em;
+        }
 
-    .chart-container { width: 100%; margin: 24px auto 0; display: none; background: #21273a; border-radius: 10px; padding: 20px; }
-    .chart-title { font-size: 1.1em; font-weight: bold; color: #91fe77; margin-bottom: 12px; text-align: center; }
-    canvas { width: 100% !important; height: auto !important; }
+        .modal-content .warning {
+            color: #ff6b6b;
+            font-weight: bold;
+            font-size: 1.3em;
+            margin: 20px 0;
+        }
 
-    .spinner { display: inline-block; width: 34px; height: 34px; }
-    .spinner:after { content: " "; display: block; width: 24px; height: 24px; margin: 4px auto; border-radius: 50%; border: 4px solid #5792fe; border-color: #5792fe #5792fe #5792fe transparent; animation: spin 1s linear infinite; }
-    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .modal-button {
+            background: linear-gradient(90deg, #14f195 0%, #9945ff 100%);
+            color: #fff;
+            border: none;
+            border-radius: 12px;
+            padding: 16px 40px;
+            font-size: 1.2em;
+            cursor: pointer;
+            font-weight: bold;
+            margin-top: 25px;
+            transition: transform 0.2s;
+        }
 
-    /* Ticker layout */
-    .ticker-layout {
-        display: grid;
-        grid-template-columns: 220px minmax(0, 1fr) 220px;
-        align-items: stretch;
-    }
+        .modal-button:hover {
+            transform: scale(1.05);
+        }
 
-    .news-ticker {
-        background: #151827;
-        border-right: 1px solid #262c44;
-        border-left: 1px solid #262c44;
-        overflow: hidden;
-        position: relative;
-    }
-    .news-ticker-left { border-radius: 0 16px 16px 0; }
-    .news-ticker-right { border-radius: 16px 0 0 16px; }
+        .modal-input {
+            width: 100%;
+            padding: 12px;
+            margin: 10px 0;
+            border: none;
+            border-radius: 8px;
+            background: #2f3857;
+            color: #fff;
+            font-size: 1em;
+            box-sizing: border-box;
+        }
 
-    .news-ticker-inner {
-        display: flex;
-        flex-direction: column;
-        gap: 12px;
-        padding: 16px 10px;
-        animation: ticker-scroll 30s linear infinite;
-    }
-    .news-item {
-        font-size: 0.78rem;
-        line-height: 1.4;
-        color: #c3d0ff;
-        padding: 8px 10px;
-        background: #1e2436;
-        border-radius: 8px;
-    }
-    .news-item span.source {
-        display: block;
-        font-size: 0.7rem;
-        color: #8fa4d5;
-        margin-top: 4px;
-    }
+        .modal-input::placeholder {
+            color: #8fa4d5;
+        }
 
-    /* clickable news links */
-    .news-item a {
-        color: #c3d0ff;
-        text-decoration: none;
-    }
-    .news-item a:hover {
-        text-decoration: underline;
-    }
+        .auth-toggle {
+            color: #14f195;
+            cursor: pointer;
+            text-decoration: underline;
+            margin-top: 15px;
+            display: inline-block;
+        }
 
-    @keyframes ticker-scroll {
-        0%   { transform: translateY(0); }
-        100% { transform: translateY(-50%); }
-    }
+        .degen-text {
+            color: #9945ff;
+            font-weight: bold;
+            font-style: italic;
+        }
 
-    @media (max-width: 1200px) {
-        .two-column-layout { grid-template-columns: 1fr; }
-    }
-    @media (max-width: 1100px) {
-        .ticker-layout { grid-template-columns: 1fr; }
-        .news-ticker { display: none; }
-    }
-</style>
+        .price-bar {
+            background: linear-gradient(90deg, #14f195 0%, #9945ff 100%);
+            padding: 12px 20px;
+            font-weight: bold;
+            font-size: 1em;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .price-bar-center {
+            display: flex;
+            gap: 40px;
+            justify-content: center;
+            flex: 1;
+        }
+
+        .price-bar-right {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            width: 250px;
+            justify-content: flex-end;
+        }
+
+        .user-profile {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: rgba(255, 255, 255, 0.1);
+            padding: 8px 15px;
+            border-radius: 8px;
+            cursor: pointer;
+            position: relative;
+        }
+
+        .user-dropdown {
+            display: none;
+            position: absolute;
+            top: 50px;
+            right: 0;
+            background: #1a1f2e;
+            border-radius: 8px;
+            padding: 15px;
+            min-width: 220px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+            z-index: 10000;
+        }
+
+        .user-dropdown.active {
+            display: block;
+        }
+
+        .user-dropdown-item {
+            padding: 10px;
+            cursor: pointer;
+            border-radius: 4px;
+            margin: 5px 0;
+        }
+
+        .user-dropdown-item:hover {
+            background: #2f3857;
+        }
+
+        .dev-only {
+            border-top: 1px solid #9945ff;
+            margin-top: 10px;
+            padding-top: 10px;
+        }
+
+        .wallet-btn {
+            background: linear-gradient(90deg, #9945ff 0%, #14f195 100%);
+            color: #fff;
+            border: none;
+            border-radius: 8px;
+            padding: 8px 16px;
+            font-size: 0.95em;
+            cursor: pointer;
+            font-weight: bold;
+        }
+
+        .auth-btn {
+            background: #5792fe;
+            color: #fff;
+            border: none;
+            border-radius: 8px;
+            padding: 8px 16px;
+            font-size: 0.95em;
+            cursor: pointer;
+            font-weight: bold;
+        }
+
+        .price-value {
+            color: #fff;
+            font-size: 1.1em;
+        }
+
+        .price-change {
+            font-size: 0.85em;
+            padding: 3px 7px;
+            border-radius: 4px;
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        .price-up {
+            color: #14f195;
+        }
+
+        .price-down {
+            color: #ff6b6b;
+        }
+
+        .two-column-layout {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 24px;
+            max-width: 1100px;
+            margin: 40px auto;
+            padding: 0;
+        }
+
+        .column {
+            background: rgba(24, 28, 41, 0.92);
+            border-radius: 16px;
+            box-shadow: 0 2px 24px 0 #0002;
+            padding: 36px 30px;
+        }
+
+        .column h1 {
+            margin-top: 0;
+            font-size: 2em;
+            text-align: center;
+        }
+
+        .search-bar {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 24px;
+        }
+
+        input[type="text"],
+        input[type="email"],
+        input[type="password"] {
+            flex: 1;
+            padding: 10px;
+            font-size: 1em;
+            border: none;
+            border-radius: 8px;
+            background: #2f3857;
+            color: #fff;
+        }
+
+        input::placeholder {
+            color: #8fa4d5;
+        }
+
+        button {
+            background: #5792fe;
+            color: #fff;
+            border: none;
+            border-radius: 8px;
+            padding: 10px 18px;
+            font-size: 1em;
+            cursor: pointer;
+            font-weight: bold;
+        }
+
+        button:hover {
+            background: #2f76e2;
+        }
+
+        .result {
+            margin-top: 32px;
+            font-size: 1.07em;
+            background: #262c44;
+            border-radius: 10px;
+            padding: 22px 16px;
+            min-height: 60px;
+            word-break: break-word;
+            white-space: pre-line;
+            display: none;
+        }
+
+        .history-section {
+            margin-top: 40px;
+            padding: 20px;
+            background: #1a1f2e;
+            border-radius: 10px;
+            display: none;
+        }
+
+        .history-section h3 {
+            color: #14f195;
+            margin-top: 0;
+        }
+
+        .history-item {
+            background: #262c44;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 8px;
+            cursor: pointer;
+        }
+
+        .history-item:hover {
+            background: #2f3857;
+        }
+
+        .trending-list {
+            margin: 24px 0 10px 0;
+        }
+
+        .trend-row {
+            background: #21273a;
+            margin-bottom: 12px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            padding: 15px 20px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .trend-row:hover {
+            background: #2e3651;
+        }
+
+        .trend-symbol {
+            font-weight: bold;
+            font-size: 1.11em;
+            color: #91fe77;
+            margin-right: 15px;
+        }
+
+        .trend-price {
+            color: #6fc4fa;
+            font-size: 1em;
+            font-weight: 500;
+        }
+
+        .chart-container {
+            width: 100%;
+            margin: 24px auto 0;
+            display: none;
+            background: #21273a;
+            border-radius: 10px;
+            padding: 20px;
+        }
+
+        .chart-title {
+            font-size: 1.1em;
+            font-weight: bold;
+            color: #91fe77;
+            margin-bottom: 12px;
+            text-align: center;
+        }
+
+        canvas {
+            width: 100% !important;
+            height: auto !important;
+        }
+
+        .spinner {
+            display: inline-block;
+            width: 34px;
+            height: 34px;
+        }
+
+        .spinner:after {
+            content: " ";
+            display: block;
+            width: 24px;
+            height: 24px;
+            margin: 4px auto;
+            border-radius: 50%;
+            border: 4px solid #5792fe;
+            border-color: #5792fe #5792fe #5792fe transparent;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+
+        /* Ticker layout */
+        .ticker-layout {
+            display: grid;
+            grid-template-columns: 220px minmax(0, 1fr) 220px;
+            align-items: stretch;
+        }
+
+        .news-ticker {
+            background: #151827;
+            border-right: 1px solid #262c44;
+            border-left: 1px solid #262c44;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .news-ticker-left {
+            border-radius: 0 16px 16px 0;
+        }
+
+        .news-ticker-right {
+            border-radius: 16px 0 0 16px;
+        }
+
+        .news-ticker-inner {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            padding: 16px 10px;
+            animation: ticker-scroll 30s linear infinite;
+        }
+
+        .news-item {
+            font-size: 0.78rem;
+            line-height: 1.4;
+            color: #c3d0ff;
+            padding: 8px 10px;
+            background: #1e2436;
+            border-radius: 8px;
+        }
+
+        .news-item span.source {
+            display: block;
+            font-size: 0.7rem;
+            color: #8fa4d5;
+            margin-top: 4px;
+        }
+
+        /* clickable news links */
+        .news-item a {
+            color: #c3d0ff;
+            text-decoration: none;
+        }
+
+        .news-item a:hover {
+            text-decoration: underline;
+        }
+
+        @keyframes ticker-scroll {
+            0% {
+                transform: translateY(0);
+            }
+
+            100% {
+                transform: translateY(-50%);
+            }
+        }
+
+        @media (max-width: 1200px) {
+            .two-column-layout {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        @media (max-width: 1100px) {
+            .ticker-layout {
+                grid-template-columns: 1fr;
+            }
+
+            .news-ticker {
+                display: none;
+            }
+        }
+    </style>
 </head>
+
 <body>
     <!-- Disclaimer Modal -->
     <div class="modal-overlay" id="disclaimerModal">
@@ -154,14 +515,14 @@
         <div class="modal-content">
             <h2 id="authTitle">Login to Continue</h2>
             <p style="font-size: 0.95em; color: #8fa4d5;">You must log in to use the Market Analyst</p>
-            
+
             <div id="loginForm">
                 <input type="email" id="loginEmail" class="modal-input" placeholder="Email">
                 <input type="password" id="loginPassword" class="modal-input" placeholder="Password">
                 <button class="modal-button" onclick="handleLogin()">Login</button>
                 <p class="auth-toggle" onclick="switchToSignup()">Don't have an account? Sign up</p>
             </div>
-            
+
             <div id="signupForm" style="display: none;">
                 <input type="text" id="signupUsername" class="modal-input" placeholder="Username">
                 <input type="email" id="signupEmail" class="modal-input" placeholder="Email">
@@ -176,64 +537,70 @@
     <div class="modal-overlay" id="statsModal">
         <div class="modal-content" style="max-width: 800px;">
             <h2 id="statsModalTitle">📊 Your Stats</h2>
-            <div id="statsContent" style="text-align: left;"><div class="spinner"></div><span>Loading...</span></div>
+            <div id="statsContent" style="text-align: left;">
+                <div class="spinner"></div><span>Loading...</span>
+            </div>
             <button class="modal-button" onclick="closeStatsModal()">Close</button>
         </div>
     </div>
 
-   <!-- Top Price Bar -->
-<div class="price-bar">
-  <div style="width: 250px;"></div>
+    <!-- Top Price Bar -->
+    <div class="price-bar">
+        <div style="width: 250px;"></div>
 
-  <div class="price-bar-center">
-    <div>
-      <span>🚀 SOL</span>
-      <!-- IDs changed to match loadSolanaPrice() -->
-      <span class="price-value" id="solPriceValue">Loading...</span>
-      <span class="price-change" id="solPriceChange"></span>
-    </div>
-
-    <div>
-      <span>📈 S&P 500</span>
-      <span class="price-value" id="spPrice">---</span>
-      <span class="price-change" id="spChange">---</span>
-    </div>
-  </div>
-
-  <div class="price-bar-right">
-    <div id="authButtons" style="display: flex; gap: 10px;">
-        <button class="auth-btn" onclick="showAuthModal()">Login</button>
-        <button class="wallet-btn" onclick="connectWallet()">Connect Wallet</button>
-    </div>
-
-    <div id="userProfile" class="user-profile" style="display: none;" onclick="toggleUserDropdown()">
-        <span id="userDisplayName">User</span>
-        <span id="walletStatus">🔗</span>
-        <span id="devBadge" style="display: none; color: #14f195; margin-left: 5px; font-size: 0.9em;">🛠 Dev</span>
-
-        <div id="userDropdown" class="user-dropdown">
-          <div style="padding: 10px; border-bottom: 1px solid #2f3857; margin-bottom: 10px;">
-            <div style="font-size: 0.9em; color: #8fa4d5;">Logged in as</div>
-            <div style="font-weight: bold;" id="userEmailDisplay">email@example.com</div>
-            <div id="devModeIndicator" style="display: none; color: #14f195; font-size: 0.85em; margin-top: 5px;">
-              🧪 Developer Mode
+        <div class="price-bar-center">
+            <div>
+                <span>🚀 SOL</span>
+                <!-- IDs changed to match loadSolanaPrice() -->
+                <span class="price-value" id="solPriceValue">Loading...</span>
+                <span class="price-change" id="solPriceChange"></span>
             </div>
-          </div>
 
-          <div class="user-dropdown-item" onclick="showHistory()">📜 My History</div>
-          <div class="user-dropdown-item" onclick="showStats()">📊 My Stats</div>
-          <div class="user-dropdown-item" onclick="connectWallet()">🔗 Connect Wallet</div>
-
-          <div id="devOnlySection" class="dev-only" style="display: none;">
-            <div class="user-dropdown-item" onclick="viewAllUsers()" style="color: #14f195;">👥 View All Users</div>
-            <div class="user-dropdown-item" onclick="viewAllAnalyses()" style="color: #14f195;">📂 All Analyses</div>
-          </div>
-
-          <div class="user-dropdown-item" onclick="logout()" style="color: #ff6b6b;">🚪 Logout</div>
+            <div>
+                <span>📈 S&P 500</span>
+                <span class="price-value" id="spPrice">---</span>
+                <span class="price-change" id="spChange">---</span>
+            </div>
         </div>
-      </div>
-  </div>
-</div>
+
+        <div class="price-bar-right">
+            <div id="authButtons" style="display: flex; gap: 10px;">
+                <button class="auth-btn" onclick="showAuthModal()">Login</button>
+                <button class="wallet-btn" onclick="connectWallet()">Connect Wallet</button>
+            </div>
+
+            <div id="userProfile" class="user-profile" style="display: none;" onclick="toggleUserDropdown()">
+                <span id="userDisplayName">User</span>
+                <span id="walletStatus">🔗</span>
+                <span id="devBadge" style="display: none; color: #14f195; margin-left: 5px; font-size: 0.9em;">🛠
+                    Dev</span>
+
+                <div id="userDropdown" class="user-dropdown">
+                    <div style="padding: 10px; border-bottom: 1px solid #2f3857; margin-bottom: 10px;">
+                        <div style="font-size: 0.9em; color: #8fa4d5;">Logged in as</div>
+                        <div style="font-weight: bold;" id="userEmailDisplay">email@example.com</div>
+                        <div id="devModeIndicator"
+                            style="display: none; color: #14f195; font-size: 0.85em; margin-top: 5px;">
+                            🧪 Developer Mode
+                        </div>
+                    </div>
+
+                    <div class="user-dropdown-item" onclick="showHistory()">📜 My History</div>
+                    <div class="user-dropdown-item" onclick="showStats()">📊 My Stats</div>
+                    <div class="user-dropdown-item" onclick="connectWallet()">🔗 Connect Wallet</div>
+
+                    <div id="devOnlySection" class="dev-only" style="display: none;">
+                        <div class="user-dropdown-item" onclick="viewAllUsers()" style="color: #14f195;">👥 View All
+                            Users</div>
+                        <div class="user-dropdown-item" onclick="viewAllAnalyses()" style="color: #14f195;">📂 All
+                            Analyses</div>
+                    </div>
+
+                    <div class="user-dropdown-item" onclick="logout()" style="color: #ff6b6b;">🚪 Logout</div>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <!-- Main Layout with Tickers -->
     <div class="ticker-layout">
@@ -259,20 +626,22 @@
                 <div id="cryptoResult" class="result"></div>
 
                 <!-- Logo after analysis -->
-                <div id="cryptoLogoContainer" style="text-align: center; padding: 50px 20px; background: #262c44; border-radius: 10px; margin-top: 32px;">
-                    <img src="/static/logo.png?v=1" alt="Crypto Logo" style="max-width: 300px; width: 100%; height: auto;">
+                <div id="cryptoLogoContainer"
+                    style="text-align: center; padding: 50px 20px; background: #262c44; border-radius: 10px; margin-top: 32px;">
+                    <img src="/static/logo.png?v=1" alt="Crypto Logo"
+                        style="max-width: 300px; width: 100%; height: auto;">
                 </div>
-                
+
                 <div id="cryptoShortTermContainer" class="chart-container">
                     <div class="chart-title">📈 Short-Term (1 Hour Prediction)</div>
                     <canvas id="cryptoShortTermChart"></canvas>
                 </div>
-                
+
                 <div id="cryptoLongTermContainer" class="chart-container">
                     <div class="chart-title">📊 Long-Term (24 Hour Prediction)</div>
                     <canvas id="cryptoLongTermChart"></canvas>
                 </div>
-                
+
                 <div id="cryptoHistorySection" class="history-section">
                     <h3>📜 Your Crypto Analysis History</h3>
                     <div id="cryptoHistoryList"></div>
@@ -287,23 +656,25 @@
                     <button onclick="analyzeStock()">Analyze</button>
                 </div>
                 <div id="stockTrending" class="trending-list"></div>
-                
+
                 <div id="stockResult" class="result"></div>
-                
-                <div id="stockLogoContainer" style="text-align: center; padding: 50px 20px; background: #262c44; border-radius: 10px; margin-top: 32px;">
-                    <img src="/static/logo.png?v=1" alt="Stock Analyst Logo" style="max-width: 300px; width: 100%; height: auto;">
+
+                <div id="stockLogoContainer"
+                    style="text-align: center; padding: 50px 20px; background: #262c44; border-radius: 10px; margin-top: 32px;">
+                    <img src="/static/logo.png?v=1" alt="Stock Analyst Logo"
+                        style="max-width: 300px; width: 100%; height: auto;">
                 </div>
-                
+
                 <div id="stockShortTermContainer" class="chart-container">
                     <div class="chart-title">📈 Short-Term Prediction</div>
                     <canvas id="stockShortTermChart"></canvas>
                 </div>
-                
+
                 <div id="stockLongTermContainer" class="chart-container">
                     <div class="chart-title">📊 Long-Term Prediction</div>
                     <canvas id="stockLongTermChart"></canvas>
                 </div>
-                
+
                 <div id="stockHistorySection" class="history-section">
                     <h3>📜 Your Stock Analysis History</h3>
                     <div id="stockHistoryList"></div>
@@ -323,150 +694,150 @@
         let authToken = null;
         let currentUser = null;
         const symbolToAddress = {
-          "$TROLL": "5UUH9RTDiSpq6HKS6bp4NdU9PNJpXRXuiw6ShBTBhgH2",
-          "$SHITCOIN": "GaPbGp23pPuY9QBLPUjUEBn2MKEroTe9Q3M3f2Xpump",
-          "$NUB": "GtDZKAqvMZMnti46ZewMiXCa4oXF4bZxwQPoKzXPFxZn",
-          "$WIF": "EKpQGSJtjMFqKZ9KQanSqYXRcF8fBopzLHYxdM65zcjm"
+            "$TROLL": "5UUH9RTDiSpq6HKS6bp4NdU9PNJpXRXuiw6ShBTBhgH2",
+            "$SHITCOIN": "GaPbGp23pPuY9QBLPUjUEBn2MKEroTe9Q3M3f2Xpump",
+            "$NUB": "GtDZKAqvMZMnti46ZewMiXCa4oXF4bZxwQPoKzXPFxZn",
+            "$WIF": "EKpQGSJtjMFqKZ9KQanSqYXRcF8fBopzLHYxdM65zcjm"
         };
-        
+
         let cryptoShortTermChart = null;
         let cryptoLongTermChart = null;
         let stockShortTermChart = null;
         let stockLongTermChart = null;
-        
+
         function acceptDisclaimer() {
             document.getElementById('disclaimerModal').classList.remove('active');
             localStorage.setItem('disclaimerAccepted', 'true');
         }
-        
+
         function showAuthModal() {
             document.getElementById('authModal').classList.add('active');
         }
-        
+
         function closeAuthModal() {
             document.getElementById('authModal').classList.remove('active');
         }
-        
+
         function switchToSignup() {
-    document.getElementById('loginForm').style.display = 'none';
-    document.getElementById('signupForm').style.display = 'block';
-    document.getElementById('authTitle').textContent = 'Create Your Account';
-}
-
-function switchToLogin() {
-    document.getElementById('signupForm').style.display = 'none';
-    document.getElementById('loginForm').style.display = 'block';
-    document.getElementById('authTitle').textContent = 'Login to Continue';
-}
-
-async function handleLogin() {
-    const email = document.getElementById('loginEmail').value.trim();
-    const password = document.getElementById('loginPassword').value;
-
-    if (!email || !password) {
-        alert('Please enter email and password');
-        return;
-    }
-
-    const isDev = (email === 'dev@memecoinmetrics.com' && password === 'Password');
-
-    try {
-        let data = null;
-        let ok = false;
-
-        if (!isDev) {
-            const response = await fetch('/api/auth/login', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ email, password })
-            });
-
-            data = await response.json();
-            ok = response.ok;
+            document.getElementById('loginForm').style.display = 'none';
+            document.getElementById('signupForm').style.display = 'block';
+            document.getElementById('authTitle').textContent = 'Create Your Account';
         }
 
-        if (isDev || ok) {
-            if (isDev) {
-                authToken = 'dev-mode-token';
-                currentUser = { email, username: 'Developer', wallet_address: null, is_dev: true };
-                alert('🔓 Developer Mode Activated');
-            } else {
-                authToken = data.access_token;
-                currentUser = data.user;
-                currentUser.is_dev = false;
+        function switchToLogin() {
+            document.getElementById('signupForm').style.display = 'none';
+            document.getElementById('loginForm').style.display = 'block';
+            document.getElementById('authTitle').textContent = 'Login to Continue';
+        }
+
+        async function handleLogin() {
+            const email = document.getElementById('loginEmail').value.trim();
+            const password = document.getElementById('loginPassword').value;
+
+            if (!email || !password) {
+                alert('Please enter email and password');
+                return;
             }
 
-            localStorage.setItem('authToken', authToken);
-            localStorage.setItem('currentUser', JSON.stringify(currentUser));
+            const isDev = (email === 'dev@memecoinmetrics.com' && password === 'Password');
 
-            updateAuthUI();
-            closeAuthModal();
+            try {
+                let data = null;
+                let ok = false;
 
-            const accepted = localStorage.getItem('disclaimerAccepted');
-            if (accepted !== 'true') {
-                document.getElementById('disclaimerModal').classList.add('active');
+                if (!isDev) {
+                    const response = await fetch('/api/auth/login', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ email, password })
+                    });
+
+                    data = await response.json();
+                    ok = response.ok;
+                }
+
+                if (isDev || ok) {
+                    if (isDev) {
+                        authToken = 'dev-mode-token';
+                        currentUser = { email, username: 'Developer', wallet_address: null, is_dev: true };
+                        alert('🔓 Developer Mode Activated');
+                    } else {
+                        authToken = data.access_token;
+                        currentUser = data.user;
+                        currentUser.is_dev = false;
+                    }
+
+                    localStorage.setItem('authToken', authToken);
+                    localStorage.setItem('currentUser', JSON.stringify(currentUser));
+
+                    updateAuthUI();
+                    closeAuthModal();
+
+                    const accepted = localStorage.getItem('disclaimerAccepted');
+                    if (accepted !== 'true') {
+                        document.getElementById('disclaimerModal').classList.add('active');
+                    }
+                } else {
+                    const detail = (data && (data.detail || data.message)) || 'Login failed';
+                    alert(detail);
+                }
+            } catch (err) {
+                console.error(err);
+                alert('Login error. Please try again.');
             }
-        } else {
-            const detail = (data && (data.detail || data.message)) || 'Login failed';
-            alert(detail);
         }
-    } catch (err) {
-        console.error(err);
-        alert('Login error. Please try again.');
-    }
-}
 
-async function handleSignup() {
-    const username = document.getElementById('signupUsername').value.trim();
-    const email = document.getElementById('signupEmail').value.trim();
-    const password = document.getElementById('signupPassword').value;
+        async function handleSignup() {
+            const username = document.getElementById('signupUsername').value.trim();
+            const email = document.getElementById('signupEmail').value.trim();
+            const password = document.getElementById('signupPassword').value;
 
-    if (!username || !email || !password) {
-        alert('Please fill in all fields');
-        return;
-    }
+            if (!username || !email || !password) {
+                alert('Please fill in all fields');
+                return;
+            }
 
-    try {
-        const response = await fetch('/api/auth/signup', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email, username, password })
-        });
+            try {
+                const response = await fetch('/api/auth/signup', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, username, password })
+                });
 
-        const data = await response.json();
+                const data = await response.json();
 
-        if (response.ok) {
-            authToken = data.access_token;
-            currentUser = data.user;
-            currentUser.is_dev = false;
+                if (response.ok) {
+                    authToken = data.access_token;
+                    currentUser = data.user;
+                    currentUser.is_dev = false;
 
-            localStorage.setItem('authToken', authToken);
-            localStorage.setItem('currentUser', JSON.stringify(currentUser));
+                    localStorage.setItem('authToken', authToken);
+                    localStorage.setItem('currentUser', JSON.stringify(currentUser));
 
-            updateAuthUI();
-            closeAuthModal();
-            document.getElementById('disclaimerModal').classList.add('active');
-            alert(data.message || 'Account created successfully!');
-        } else {
-            const detail = data.detail || data.message || 'Signup failed. Please try again.';
-            alert(detail);
+                    updateAuthUI();
+                    closeAuthModal();
+                    document.getElementById('disclaimerModal').classList.add('active');
+                    alert(data.message || 'Account created successfully!');
+                } else {
+                    const detail = data.detail || data.message || 'Signup failed. Please try again.';
+                    alert(detail);
+                }
+            } catch (err) {
+                console.error(err);
+                alert('Signup error. Please try again.');
+            }
         }
-    } catch (err) {
-        console.error(err);
-        alert('Signup error. Please try again.');
-    }
-}
 
-function logout() {
-    authToken = null;
-    currentUser = null;
-    localStorage.removeItem('authToken');
-    localStorage.removeItem('currentUser');
-    localStorage.removeItem('disclaimerAccepted');
-    alert('Logged out successfully');
-    location.reload();
-}
-        
+        function logout() {
+            authToken = null;
+            currentUser = null;
+            localStorage.removeItem('authToken');
+            localStorage.removeItem('currentUser');
+            localStorage.removeItem('disclaimerAccepted');
+            alert('Logged out successfully');
+            location.reload();
+        }
+
         function updateAuthUI() {
             if (currentUser) {
                 document.getElementById('authButtons').style.display = 'none';
@@ -474,7 +845,7 @@ function logout() {
                 document.getElementById('userDisplayName').textContent = currentUser.username;
                 document.getElementById('userEmailDisplay').textContent = currentUser.email;
                 document.getElementById('walletStatus').textContent = currentUser.wallet_address ? '🔗✅' : '🔗';
-                
+
                 if (currentUser.is_dev) {
                     document.getElementById('devBadge').style.display = 'inline';
                     document.getElementById('devModeIndicator').style.display = 'block';
@@ -489,42 +860,42 @@ function logout() {
                 document.getElementById('userProfile').style.display = 'none';
             }
         }
-        
+
         function toggleUserDropdown() {
             const dropdown = document.getElementById('userDropdown');
             dropdown.classList.toggle('active');
         }
-        
-        document.addEventListener('click', function(event) {
+
+        document.addEventListener('click', function (event) {
             const profile = document.getElementById('userProfile');
             const dropdown = document.getElementById('userDropdown');
             if (profile && !profile.contains(event.target)) {
                 dropdown.classList.remove('active');
             }
         });
-        
+
         async function connectWallet() {
             try {
                 const solana = window.solana;
-                
+
                 if (!solana || !solana.isPhantom) {
                     alert('Phantom wallet not detected! Please install Phantom wallet extension.');
                     window.open('https://phantom.app/', '_blank');
                     return;
                 }
-                
+
                 const response = await solana.connect();
                 const walletAddress = response.publicKey.toString();
-                
+
                 if (authToken && currentUser && !currentUser.is_dev && authToken !== 'dev-mode-token') {
                     try {
                         const linkResponse = await fetch(`/api/auth/connect-wallet?wallet_address=${encodeURIComponent(walletAddress)}`, {
                             method: 'POST',
                             headers: { 'Authorization': `Bearer ${authToken}` }
                         });
-                        
+
                         const linkData = await linkResponse.json();
-                        
+
                         if (linkResponse.ok) {
                             currentUser.wallet_address = walletAddress;
                             localStorage.setItem('currentUser', JSON.stringify(currentUser));
@@ -547,20 +918,20 @@ function logout() {
                 }
             }
         }
-        
+
         async function viewAllUsers() {
             if (!currentUser || !currentUser.is_dev) {
                 alert('Developer access only');
                 return;
             }
-            
+
             try {
                 const response = await fetch('/api/admin/users', { headers: getAuthHeaders() });
                 const data = await response.json();
-                
+
                 if (response.ok) {
                     let usersHTML = `<h3>👥 All Registered Users (${data.total_users})</h3><div style="max-height: 400px; overflow-y: auto;">`;
-                    
+
                     data.users.forEach(u => {
                         usersHTML += `
                             <div style="background: #262c44; padding: 15px; margin: 10px 0; border-radius: 8px; text-align: left;">
@@ -573,9 +944,9 @@ function logout() {
                             </div>
                         `;
                     });
-                    
+
                     usersHTML += '</div>';
-                    
+
                     document.getElementById('statsModalTitle').textContent = '👥 All Users';
                     document.getElementById('statsContent').innerHTML = usersHTML;
                     document.getElementById('statsModal').classList.add('active');
@@ -586,20 +957,20 @@ function logout() {
                 alert('Error loading users');
             }
         }
-        
+
         async function viewAllAnalyses() {
             if (!currentUser || !currentUser.is_dev) {
                 alert('Developer access only');
                 return;
             }
-            
+
             try {
                 const response = await fetch('/api/admin/analyses?limit=100', { headers: getAuthHeaders() });
                 const data = await response.json();
-                
+
                 if (response.ok) {
                     let analysesHTML = `<h3>📊 All User Analyses (${data.total})</h3><div style="max-height: 400px; overflow-y: auto;">`;
-                    
+
                     data.analyses.forEach(a => {
                         const predColor = a.prediction.includes('AVOID') ? '#ff6b6b' : '#65e261';
                         analysesHTML += `
@@ -615,9 +986,9 @@ function logout() {
                             </div>
                         `;
                     });
-                    
+
                     analysesHTML += '</div>';
-                    
+
                     document.getElementById('statsModalTitle').textContent = '📊 All Analyses';
                     document.getElementById('statsContent').innerHTML = analysesHTML;
                     document.getElementById('statsModal').classList.add('active');
@@ -628,17 +999,17 @@ function logout() {
                 alert('Error loading analyses');
             }
         }
-        
+
         async function showHistory() {
             if (!authToken || authToken === 'dev-mode-token') {
                 alert('Please login with a real account to view your history');
                 return;
             }
-            
+
             try {
                 const response = await fetch('/api/user/history?limit=50', { headers: { 'Authorization': `Bearer ${authToken}` } });
                 const data = await response.json();
-                
+
                 if (response.ok) {
                     const cryptoAnalyses = data.analyses.filter(a => a.type === 'crypto');
                     if (cryptoAnalyses.length > 0) {
@@ -654,7 +1025,7 @@ function logout() {
                         document.getElementById('cryptoHistoryList').innerHTML = cryptoHTML;
                         document.getElementById('cryptoHistorySection').style.display = 'block';
                     }
-                    
+
                     const stockAnalyses = data.analyses.filter(a => a.type === 'stock');
                     if (stockAnalyses.length > 0) {
                         const stockHTML = stockAnalyses.map(a => `
@@ -669,7 +1040,7 @@ function logout() {
                         document.getElementById('stockHistoryList').innerHTML = stockHTML;
                         document.getElementById('stockHistorySection').style.display = 'block';
                     }
-                    
+
                     if (data.analyses.length === 0) {
                         alert('No analysis history yet. Start searching!');
                     }
@@ -680,7 +1051,7 @@ function logout() {
                 alert('Error loading history');
             }
         }
-        
+
         function reanalyze(symbol, type) {
             if (type === 'crypto') {
                 document.getElementById('cryptoSymbol').value = symbol;
@@ -690,22 +1061,22 @@ function logout() {
                 analyzeStock();
             }
         }
-        
+
         async function showStats() {
             if (!authToken || authToken === 'dev-mode-token') {
                 alert('Please login with a real account to view stats');
                 return;
             }
-            
+
             try {
                 document.getElementById('statsModal').classList.add('active');
-                
+
                 const response = await fetch('/api/user/stats', { headers: { 'Authorization': `Bearer ${authToken}` } });
                 const data = await response.json();
-                
+
                 if (response.ok) {
                     const topSymbolsHTML = data.top_symbols.map(s => `<li>${s.symbol} (${s.count} searches)</li>`).join('');
-                    
+
                     document.getElementById('statsModalTitle').textContent = '📊 Your Stats';
                     document.getElementById('statsContent').innerHTML = `
                         <div style="font-size: 1.1em;">
@@ -725,20 +1096,20 @@ function logout() {
                 document.getElementById('statsContent').innerHTML = '<p style="color: #ff6b6b;">Error loading stats</p>';
             }
         }
-        
+
         function closeStatsModal() {
             document.getElementById('statsModal').classList.remove('active');
         }
-        
-        window.addEventListener('load', function() {
+
+        window.addEventListener('load', function () {
             const savedToken = localStorage.getItem('authToken');
             const savedUser = localStorage.getItem('currentUser');
-            
+
             if (savedToken && savedUser) {
                 authToken = savedToken;
                 currentUser = JSON.parse(savedUser);
                 updateAuthUI();
-                
+
                 const accepted = localStorage.getItem('disclaimerAccepted');
                 if (accepted !== 'true') {
                     document.getElementById('disclaimerModal').classList.add('active');
@@ -748,14 +1119,14 @@ function logout() {
                 document.getElementById('disclaimerModal').classList.remove('active');
             }
         });
-        
+
         function getAuthHeaders() {
             if (authToken && authToken !== 'dev-mode-token') {
                 return { 'Authorization': `Bearer ${authToken}` };
             }
             return {};
         }
-        
+
         async function loadSolanaPrice() {
             try {
                 const response = await fetch("/api/predict?symbol=SOL");
@@ -773,7 +1144,7 @@ function logout() {
                 document.getElementById('solPriceValue').textContent = 'Error';
             }
         }
-        
+
         async function loadMarketIndices() {
             try {
                 const response = await fetch('/api/market-indices');
@@ -788,9 +1159,9 @@ function logout() {
                         changeElement.className = 'price-change ' + (sp.change >= 0 ? 'price-up' : 'price-down');
                     }
                 }
-            } catch {}
+            } catch { }
         }
-        
+
         async function loadCryptoTrending() {
             try {
                 const response = await fetch('/api/latest-tokens');
@@ -798,7 +1169,7 @@ function logout() {
                 let html = "<b style='font-size:1.05em;'>Trending Solana Tokens</b>";
                 if (data.tokens && data.tokens.length) {
                     html += data.tokens.slice(0, 6).map(t =>
-                      `<div class='trend-row' onclick="quickSearchCrypto('${t.symbol}')">
+                        `<div class='trend-row' onclick="quickSearchCrypto('${t.symbol}')">
                          <span class='trend-symbol'>${t.symbol}</span>
                          <span class='trend-price'>${t.price}</span>
                       </div>`
@@ -809,7 +1180,7 @@ function logout() {
                 document.getElementById("cryptoTrending").innerHTML = "Trending tokens unavailable.";
             }
         }
-        
+
         async function loadStockTrending() {
             try {
                 const response = await fetch('/api/trending-stocks');
@@ -817,7 +1188,7 @@ function logout() {
                 let html = "<b style='font-size:1.05em;'>Popular Stocks</b>";
                 if (data.stocks && data.stocks.length) {
                     html += data.stocks.map(s =>
-                      `<div class='trend-row' onclick="quickSearchStock('${s.ticker}')">
+                        `<div class='trend-row' onclick="quickSearchStock('${s.ticker}')">
                          <span class='trend-symbol'>${s.ticker}</span>
                          <span class='trend-price'>${s.price}</span>
                       </div>`
@@ -828,311 +1199,316 @@ function logout() {
                 document.getElementById("stockTrending").innerHTML = "Trending stocks unavailable.";
             }
         }
-async function analyzeCrypto() {
-  let symbol = document
-    .getElementById("cryptoSymbol")
-    .value
-    .trim()
-    .toUpperCase();
+        async function analyzeCrypto() {
+            let symbol = document
+                .getElementById("cryptoSymbol")
+                .value
+                .trim()
+                .toUpperCase();
 
-  if (symbolToAddress[symbol]) {
-    symbol = symbolToAddress[symbol];
-  }
-  if (!symbol) {
-    alert("Please enter a crypto symbol or address");
-    return;
-  }
+            if (symbolToAddress[symbol]) {
+                symbol = symbolToAddress[symbol];
+            }
+            if (!symbol) {
+                alert("Please enter a crypto symbol or address");
+                return;
+            }
 
-  const resultEl = document.getElementById("cryptoResult");
-  resultEl.style.display = "block";
-  resultEl.innerHTML = "<div class='spinner'></div> Analyzing crypto...";
+            const resultEl = document.getElementById("cryptoResult");
+            resultEl.style.display = "block";
+            resultEl.innerHTML = "<div class='spinner'></div> Analyzing crypto...";
 
-  try {
-    const response = await fetch(
-      `/api/predict?symbol=${encodeURIComponent(symbol)}`,
-      { headers: getAuthHeaders() }
-    );
-    const data = await response.json();
+            try {
+                const response = await fetch(
+                    `/api/predict?symbol=${encodeURIComponent(symbol)}`,
+                    { headers: getAuthHeaders() }
+                );
 
-    if (!response.ok) {
-      resultEl.innerHTML = `<span style="color:#ff6b6b;">Error: ${
-        data.detail || "Failed to analyze crypto."
-      }</span>`;
-      return;
-    }
+                let data = null;
+                try {
+                    data = await response.json();
+                } catch {
+                    data = null;
+                }
 
-   resultEl.innerHTML = `
-  <div class="headline">${data.prediction}</div>
-  <div class="reasoning">${data.reasoning || ""}</div>
-  <div class="metric-row">
-    <span>Liquidity:</span>
-    <span>$${(data.liquidity || 0).toLocaleString()}</span>
-  </div>
-`;
-    if (data.short_term && data.short_term.length > 0) {
-      const labels = data.short_term.map((p) => p.time);
-      const prices = data.short_term.map((p) => p.price);
+                if (!response.ok || !data) {
+                    const msg = (data && data.detail) || "Failed to analyze crypto.";
+                    resultEl.innerHTML = `<span style="color:#ff6b6b;">Error: ${msg}</span>`;
+                    return;
+                }
 
-      if (cryptoShortTermChart) cryptoShortTermChart.destroy();
-      const ctx1 = document
-        .getElementById("cryptoShortTermChart")
-        .getContext("2d");
-      cryptoShortTermChart = new Chart(ctx1, {
-        type: "line",
-        data: {
-          labels,
-          datasets: [
-            {
-              label: "Price",
-              data: prices,
-              borderColor: "#6fc4fa",
-              backgroundColor: "rgba(111,196,250,0.15)",
-              tension: 0.25,
-              fill: true,
-            },
-          ],
-        },
-        options: getChartOptions(true),
-      });
-      document.getElementById("cryptoShortTermContainer").style.display =
-        "block";
-    }
+                resultEl.innerHTML = `
+    <div class="headline">${data.prediction}</div>
+    <div class="reasoning">${data.reasoning || ""}</div>
+    <div class="metric-row">
+      <span>Liquidity:</span>
+      <span>$${(data.liquidity || 0).toLocaleString()}</span>
+    </div>
+  `;
 
-    if (data.long_term && data.long_term.length > 0) {
-      const labels = data.long_term.map((p) => p.time);
-      const prices = data.long_term.map((p) => p.price);
+                if (data.short_term && data.short_term.length > 0) {
+                    const labels = data.short_term.map((p) => p.time);
+                    const prices = data.short_term.map((p) => p.price);
 
-      if (cryptoLongTermChart) cryptoLongTermChart.destroy();
-      const ctx2 = document
-        .getElementById("cryptoLongTermChart")
-        .getContext("2d");
-      cryptoLongTermChart = new Chart(ctx2, {
-        type: "line",
-        data: {
-          labels,
-          datasets: [
-            {
-              label: "Price",
-              data: prices,
-              borderColor: "#91fe77",
-              backgroundColor: "rgba(145,254,119,0.15)",
-              tension: 0.25,
-              fill: true,
-            },
-          ],
-        },
-        options: getChartOptions(false),
-      });
-      document.getElementById("cryptoLongTermContainer").style.display =
-        "block";
-    }
-  } catch (err) {
-    resultEl.innerHTML = `<span style="color:#ff6b6b;">Error: ${err.message}</span>`;
-  }
-}
+                    if (cryptoShortTermChart) cryptoShortTermChart.destroy();
+                    const ctx1 = document
+                        .getElementById("cryptoShortTermChart")
+                        .getContext("2d");
+                    cryptoShortTermChart = new Chart(ctx1, {
+                        type: "line",
+                        data: {
+                            labels,
+                            datasets: [
+                                {
+                                    label: "Price",
+                                    data: prices,
+                                    borderColor: "#6fc4fa",
+                                    backgroundColor: "rgba(111,196,250,0.15)",
+                                    tension: 0.25,
+                                    fill: true,
+                                },
+                            ],
+                        },
+                        options: getChartOptions(true),
+                    });
+                    document.getElementById("cryptoShortTermContainer").style.display =
+                        "block";
+                }
 
-async function analyzeStock() {
-  const ticker = document
-    .getElementById("stockTicker")
-    .value
-    .trim()
-    .toUpperCase();
+                if (data.long_term && data.long_term.length > 0) {
+                    const labels = data.long_term.map((p) => p.time);
+                    const prices = data.long_term.map((p) => p.price);
 
-  if (!ticker) {
-    alert("Please enter a stock ticker");
-    return;
-  }
-
-  const resultEl = document.getElementById("stockResult");
-  resultEl.style.display = "block";
-  resultEl.innerHTML = "<div class='spinner'></div> Analyzing stock...";
-
-  try {
-    const response = await fetch(
-      `/api/predict-stock?ticker=${encodeURIComponent(ticker)}`,
-      { headers: getAuthHeaders() }
-    );
-    const data = await response.json();
-
-    if (!response.ok) {
-      resultEl.innerHTML = `<span style="color:#ff6b6b;">Error: ${
-        data.detail || "Failed to analyze stock."
-      }</span>`;
-      return;
-    }
-
-    resultEl.innerText =
-      data.analysis || data.prediction || "No analysis returned.";
-
-    if (data.short_term && data.short_term.length > 0) {
-      const labels = data.short_term.map((p) => p.time);
-      const prices = data.short_term.map((p) => p.price);
-
-      if (stockShortTermChart) stockShortTermChart.destroy();
-      const ctx1 = document
-        .getElementById("stockShortTermChart")
-        .getContext("2d");
-      stockShortTermChart = new Chart(ctx1, {
-        type: "line",
-        data: {
-          labels,
-          datasets: [
-            {
-              label: "Price",
-              data: prices,
-              borderColor: "#6fc4fa",
-              backgroundColor: "rgba(111,196,250,0.15)",
-              tension: 0.25,
-              fill: true,
-            },
-          ],
-        },
-        options: getChartOptions(true),
-      });
-      document.getElementById("stockShortTermContainer").style.display =
-        "block";
-    }
-
-    if (data.long_term && data.long_term.length > 0) {
-      const labels = data.long_term.map((p) => p.time);
-      const prices = data.long_term.map((p) => p.price);
-
-      if (stockLongTermChart) stockLongTermChart.destroy();
-      const ctx2 = document
-        .getElementById("stockLongTermChart")
-        .getContext("2d");
-      stockLongTermChart = new Chart(ctx2, {
-        type: "line",
-        data: {
-          labels,
-          datasets: [
-            {
-              label: "Price",
-              data: prices,
-              borderColor: "#91fe77",
-              backgroundColor: "rgba(145,254,119,0.15)",
-              tension: 0.25,
-              fill: true,
-            },
-          ],
-        },
-        options: getChartOptions(false),
-      });
-      document.getElementById("stockLongTermContainer").style.display =
-        "block";
-    }
-  } catch (err) {
-    resultEl.innerHTML = `<span style="color:#ff6b6b;">Error: ${err.message}</span>`;
-  }
-}
+                    if (cryptoLongTermChart) cryptoLongTermChart.destroy();
+                    const ctx2 = document
+                        .getElementById("cryptoLongTermChart")
+                        .getContext("2d");
+                    cryptoLongTermChart = new Chart(ctx2, {
+                        type: "line",
+                        data: {
+                            labels,
+                            datasets: [
+                                {
+                                    label: "Price",
+                                    data: prices,
+                                    borderColor: "#91fe77",
+                                    backgroundColor: "rgba(145,254,119,0.15)",
+                                    tension: 0.25,
+                                    fill: true,
+                                },
+                            ],
+                        },
+                        options: getChartOptions(false),
+                    });
+                    document.getElementById("cryptoLongTermContainer").style.display =
+                        "block";
+                }
+            } catch (err) {
+                resultEl.innerHTML = `<span style="color:#ff6b6b;">Error: ${err.message}</span>`;
+            }
 
 
-        async function analyzeStock() {
-  const ticker = document
-    .getElementById("stockTicker")
-    .value
-    .trim()
-    .toUpperCase();
+            async function analyzeStock() {
+                const ticker = document
+                    .getElementById("stockTicker")
+                    .value
+                    .trim()
+                    .toUpperCase();
 
-  if (!ticker) {
-    alert("Please enter a stock ticker");
-    return;
-  }
+                if (!ticker) {
+                    alert("Please enter a stock ticker");
+                    return;
+                }
 
-  const resultEl = document.getElementById("stockResult");
-  resultEl.style.display = "block";
-  resultEl.innerHTML = "<div class='spinner'></div> Analyzing stock...";
+                const resultEl = document.getElementById("stockResult");
+                resultEl.style.display = "block";
+                resultEl.innerHTML = "<div class='spinner'></div> Analyzing stock...";
 
-  try {
-    const response = await fetch(
-      `/api/predict-stock?ticker=${encodeURIComponent(ticker)}`,
-      { headers: getAuthHeaders() }
-    );
-    const data = await response.json();
+                try {
+                    const response = await fetch(
+                        `/api/predict-stock?ticker=${encodeURIComponent(ticker)}`,
+                        { headers: getAuthHeaders() }
+                    );
+                    const data = await response.json();
 
-    if (!response.ok) {
-      resultEl.innerHTML = `<span style="color:#ff6b6b;">Error: ${
-        data.detail || "Failed to analyze stock."
-      }</span>`;
-      return;
-    }
+                    if (!response.ok) {
+                        resultEl.innerHTML = `<span style="color:#ff6b6b;">Error: ${data.detail || "Failed to analyze stock."
+                            }</span>`;
+                        return;
+                    }
 
-    resultEl.innerText =
-      data.analysis || data.prediction || "No analysis returned.";
+                    resultEl.innerText =
+                        data.analysis || data.prediction || "No analysis returned.";
 
-    if (data.short_term && data.short_term.length > 0) {
-      const labels = data.short_term.map((p) => p.time);
-      const prices = data.short_term.map((p) => p.price);
+                    if (data.short_term && data.short_term.length > 0) {
+                        const labels = data.short_term.map((p) => p.time);
+                        const prices = data.short_term.map((p) => p.price);
 
-      if (stockShortTermChart) stockShortTermChart.destroy();
-      const ctx1 = document
-        .getElementById("stockShortTermChart")
-        .getContext("2d");
-      stockShortTermChart = new Chart(ctx1, {
-        type: "line",
-        data: {
-          labels,
-          datasets: [
-            {
-              label: "Price",
-              data: prices,
-              borderColor: "#6fc4fa",
-              backgroundColor: "rgba(111,196,250,0.15)",
-              tension: 0.25,
-              fill: true,
-            },
-          ],
-        },
-        options: getChartOptions(true),
-      });
-      document.getElementById("stockShortTermContainer").style.display =
-        "block";
-    }
+                        if (stockShortTermChart) stockShortTermChart.destroy();
+                        const ctx1 = document
+                            .getElementById("stockShortTermChart")
+                            .getContext("2d");
+                        stockShortTermChart = new Chart(ctx1, {
+                            type: "line",
+                            data: {
+                                labels,
+                                datasets: [
+                                    {
+                                        label: "Price",
+                                        data: prices,
+                                        borderColor: "#6fc4fa",
+                                        backgroundColor: "rgba(111,196,250,0.15)",
+                                        tension: 0.25,
+                                        fill: true,
+                                    },
+                                ],
+                            },
+                            options: getChartOptions(true),
+                        });
+                        document.getElementById("stockShortTermContainer").style.display =
+                            "block";
+                    }
 
-    if (data.long_term && data.long_term.length > 0) {
-      const labels = data.long_term.map((p) => p.time);
-      const prices = data.long_term.map((p) => p.price);
+                    if (data.long_term && data.long_term.length > 0) {
+                        const labels = data.long_term.map((p) => p.time);
+                        const prices = data.long_term.map((p) => p.price);
 
-      if (stockLongTermChart) stockLongTermChart.destroy();
-      const ctx2 = document
-        .getElementById("stockLongTermChart")
-        .getContext("2d");
-      stockLongTermChart = new Chart(ctx2, {
-        type: "line",
-        data: {
-          labels,
-          datasets: [
-            {
-              label: "Price",
-              data: prices,
-              borderColor: "#91fe77",
-              backgroundColor: "rgba(145,254,119,0.15)",
-              tension: 0.25,
-              fill: true,
-            },
-          ],
-        },
-        options: getChartOptions(false),
-      });
-      document.getElementById("stockLongTermContainer").style.display =
-        "block";
-    }
-  } catch (err) {
-    resultEl.innerHTML = `<span style="color:#ff6b6b;">Error: ${err.message}</span>`;
-  }
-}
+                        if (stockLongTermChart) stockLongTermChart.destroy();
+                        const ctx2 = document
+                            .getElementById("stockLongTermChart")
+                            .getContext("2d");
+                        stockLongTermChart = new Chart(ctx2, {
+                            type: "line",
+                            data: {
+                                labels,
+                                datasets: [
+                                    {
+                                        label: "Price",
+                                        data: prices,
+                                        borderColor: "#91fe77",
+                                        backgroundColor: "rgba(145,254,119,0.15)",
+                                        tension: 0.25,
+                                        fill: true,
+                                    },
+                                ],
+                            },
+                            options: getChartOptions(false),
+                        });
+                        document.getElementById("stockLongTermContainer").style.display =
+                            "block";
+                    }
+                } catch (err) {
+                    resultEl.innerHTML = `<span style="color:#ff6b6b;">Error: ${err.message}</span>`;
+                }
+            }
+        } 
 
 
-        async function loadCryptoNews() {
-    const container = document.getElementById('cryptoNewsTicker');
-    if (!container) return;
+            async function analyzeStock() {
+                const ticker = document
+                    .getElementById("stockTicker")
+                    .value
+                    .trim()
+                    .toUpperCase();
 
-    try {
-        const resp = await fetch('/api/crypto-news');
-        const data = await resp.json();
-        const items = (data.news || []).slice(0, 20);
+                if (!ticker) {
+                    alert("Please enter a stock ticker");
+                    return;
+                }
 
-        const html = items.map(n => `
+                const resultEl = document.getElementById("stockResult");
+                resultEl.style.display = "block";
+                resultEl.innerHTML = "<div class='spinner'></div> Analyzing stock...";
+
+                try {
+                    const response = await fetch(
+                        `/api/predict-stock?ticker=${encodeURIComponent(ticker)}`,
+                        { headers: getAuthHeaders() }
+                    );
+                    const data = await response.json();
+
+                    if (!response.ok) {
+                        resultEl.innerHTML = `<span style="color:#ff6b6b;">Error: ${data.detail || "Failed to analyze stock."
+                            }</span>`;
+                        return;
+                    }
+
+                    resultEl.innerText =
+                        data.analysis || data.prediction || "No analysis returned.";
+
+                    if (data.short_term && data.short_term.length > 0) {
+                        const labels = data.short_term.map((p) => p.time);
+                        const prices = data.short_term.map((p) => p.price);
+
+                        if (stockShortTermChart) stockShortTermChart.destroy();
+                        const ctx1 = document
+                            .getElementById("stockShortTermChart")
+                            .getContext("2d");
+                        stockShortTermChart = new Chart(ctx1, {
+                            type: "line",
+                            data: {
+                                labels,
+                                datasets: [
+                                    {
+                                        label: "Price",
+                                        data: prices,
+                                        borderColor: "#6fc4fa",
+                                        backgroundColor: "rgba(111,196,250,0.15)",
+                                        tension: 0.25,
+                                        fill: true,
+                                    },
+                                ],
+                            },
+                            options: getChartOptions(true),
+                        });
+                        document.getElementById("stockShortTermContainer").style.display =
+                            "block";
+                    }
+
+                    if (data.long_term && data.long_term.length > 0) {
+                        const labels = data.long_term.map((p) => p.time);
+                        const prices = data.long_term.map((p) => p.price);
+
+                        if (stockLongTermChart) stockLongTermChart.destroy();
+                        const ctx2 = document
+                            .getElementById("stockLongTermChart")
+                            .getContext("2d");
+                        stockLongTermChart = new Chart(ctx2, {
+                            type: "line",
+                            data: {
+                                labels,
+                                datasets: [
+                                    {
+                                        label: "Price",
+                                        data: prices,
+                                        borderColor: "#91fe77",
+                                        backgroundColor: "rgba(145,254,119,0.15)",
+                                        tension: 0.25,
+                                        fill: true,
+                                    },
+                                ],
+                            },
+                            options: getChartOptions(false),
+                        });
+                        document.getElementById("stockLongTermContainer").style.display =
+                            "block";
+                    }
+                } catch (err) {
+                    resultEl.innerHTML = `<span style="color:#ff6b6b;">Error: ${err.message}</span>`;
+                }
+            }
+
+
+            async function loadCryptoNews() {
+                const container = document.getElementById('cryptoNewsTicker');
+                if (!container) return;
+
+                try {
+                    const resp = await fetch('/api/crypto-news');
+                    const data = await resp.json();
+                    const items = (data.news || []).slice(0, 20);
+
+                    const html = items.map(n => `
             <div class="news-item">
                 <a href="${n.url || '#'}" target="_blank" rel="noopener noreferrer">
                     ${n.headline}
@@ -1141,22 +1517,22 @@ async function analyzeStock() {
             </div>
         `).join('');
 
-        container.innerHTML = html + html;
-    } catch {
-        container.innerHTML = "<div class='news-item'>Crypto news unavailable.</div>";
-    }
-}
+                    container.innerHTML = html + html;
+                } catch {
+                    container.innerHTML = "<div class='news-item'>Crypto news unavailable.</div>";
+                }
+            }
 
-      async function loadStockNews() {
-    const container = document.getElementById('stockNewsTicker');
-    if (!container) return;
+            async function loadStockNews() {
+                const container = document.getElementById('stockNewsTicker');
+                if (!container) return;
 
-    try {
-        const resp = await fetch('/api/market-news');
-        const data = await resp.json();
-        const items = (data.news || []).slice(0, 20);
+                try {
+                    const resp = await fetch('/api/market-news');
+                    const data = await resp.json();
+                    const items = (data.news || []).slice(0, 20);
 
-        const html = items.map(n => `
+                    const html = items.map(n => `
             <div class="news-item">
                 <a href="${n.url || '#'}" target="_blank" rel="noopener noreferrer">
                     ${n.headline}
@@ -1165,63 +1541,64 @@ async function analyzeStock() {
             </div>
         `).join('');
 
-        container.innerHTML = html + html;
-    } catch {
-        container.innerHTML = "<div class='news-item'>Stock news unavailable.</div>";
-    }
-}
+                    container.innerHTML = html + html;
+                } catch {
+                    container.innerHTML = "<div class='news-item'>Stock news unavailable.</div>";
+                }
+            }
 
-        function quickSearchCrypto(symbol) {
-            document.getElementById("cryptoSymbol").value = symbol;
-            analyzeCrypto();
-        }
-        
-        function quickSearchStock(ticker) {
-            document.getElementById("stockTicker").value = ticker;
-            analyzeStock();
-        }
-        
-        function getChartOptions(isShortTerm = true) {
-            return {
-                responsive: true, maintainAspectRatio: true, aspectRatio: isShortTerm ? 1.7 : 1.8,
-                plugins: {
-                    legend: { display: false },
-                    tooltip: {
-                        callbacks: {
-                            label: function(ctx) {
-                                return `Price: $${ctx.parsed.y.toFixed(4)}`;
+            function quickSearchCrypto(symbol) {
+                document.getElementById("cryptoSymbol").value = symbol;
+                analyzeCrypto();
+            }
+
+            function quickSearchStock(ticker) {
+                document.getElementById("stockTicker").value = ticker;
+                analyzeStock();
+            }
+
+            function getChartOptions(isShortTerm = true) {
+                return {
+                    responsive: true, maintainAspectRatio: true, aspectRatio: isShortTerm ? 1.7 : 1.8,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                label: function (ctx) {
+                                    return `Price: $${ctx.parsed.y.toFixed(4)}`;
+                                }
                             }
                         }
-                    }
-                },
-                scales: {
-                    x: {
-                        grid: { color: "rgba(255,255,255,0.08)" },
-                        ticks: { color: "#c3d0ff", maxTicksLimit: 6 }
                     },
-                    y: {
-                        grid: { color: "rgba(255,255,255,0.08)" },
-                        ticks: { color: "#c3d0ff" }
+                    scales: {
+                        x: {
+                            grid: { color: "rgba(255,255,255,0.08)" },
+                            ticks: { color: "#c3d0ff", maxTicksLimit: 6 }
+                        },
+                        y: {
+                            grid: { color: "rgba(255,255,255,0.08)" },
+                            ticks: { color: "#c3d0ff" }
+                        }
                     }
-                }
-            };
-        }
+                };
+            }
 
-        // Kick off initial loads
-        loadSolanaPrice();
-        loadMarketIndices();
-        loadCryptoTrending();
-        loadStockTrending();
-        loadCryptoNews();
-        loadStockNews();
+            // Kick off initial loads
+            loadSolanaPrice();
+            loadMarketIndices();
+            loadCryptoTrending();
+            loadStockTrending();
+            loadCryptoNews();
+            loadStockNews();
 
-        // Refresh intervals
-        setInterval(loadSolanaPrice, 60_000);
-        setInterval(loadMarketIndices, 300_000);
-        setInterval(loadCryptoTrending, 300_000);
-        setInterval(loadStockTrending, 300_000);
-        setInterval(loadCryptoNews, 600_000);
-        setInterval(loadStockNews, 600_000);
+            // Refresh intervals
+            setInterval(loadSolanaPrice, 60_000);
+            setInterval(loadMarketIndices, 300_000);
+            setInterval(loadCryptoTrending, 300_000);
+            setInterval(loadStockTrending, 300_000);
+            setInterval(loadCryptoNews, 600_000);
+            setInterval(loadStockNews, 600_000);
     </script>
 </body>
+
 </html>
