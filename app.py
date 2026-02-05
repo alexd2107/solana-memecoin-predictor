@@ -114,7 +114,13 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 
 
 def get_password_hash(password: str) -> str:
+    # Ensure bcrypt never sees more than 72 bytes
+    pw_bytes = password.encode("utf-8")
+    if len(pw_bytes) > 72:
+        pw_bytes = pw_bytes[:72]
+        password = pw_bytes.decode("utf-8", errors="ignore")
     return pwd_context.hash(password)
+
 
 
 def create_access_token(data: dict, expires_delta: timedelta = None):
@@ -184,13 +190,6 @@ async def signup(payload: SignupRequest, db: Session = Depends(get_db)):
     username = payload.username
     password = payload.password
 
-    # Enforce bcrypt 72‑byte limit
-    if len(password.encode("utf-8")) > 72:
-        raise HTTPException(
-            status_code=400,
-            detail="Password too long, please use 72 characters or less.",
-        )
-
     try:
         existing_user = db.query(User).filter(
             (User.email == email) | (User.username == username)
@@ -202,6 +201,7 @@ async def signup(payload: SignupRequest, db: Session = Depends(get_db)):
             else:
                 raise HTTPException(status_code=400, detail="Username already taken")
 
+        # Hash with safe truncation inside helper
         hashed_password = get_password_hash(password)
         new_user = User(email=email, username=username, hashed_password=hashed_password)
 
