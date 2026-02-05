@@ -178,11 +178,19 @@ class LoginRequest(BaseModel):
 
 # ======================= AUTH ENDPOINTS =======================
 
-@app.post("/api/auth/signup")
+@@app.post("/api/auth/signup")
 async def signup(payload: SignupRequest, db: Session = Depends(get_db)):
     email = payload.email
     username = payload.username
     password = payload.password
+
+    # Enforce bcrypt 72‑byte limit
+    if len(password.encode("utf-8")) > 72:
+        raise HTTPException(
+            status_code=400,
+            detail="Password too long, please use 72 characters or less.",
+        )
+
     try:
         existing_user = db.query(User).filter(
             (User.email == email) | (User.username == username)
@@ -218,7 +226,6 @@ async def signup(payload: SignupRequest, db: Session = Depends(get_db)):
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Signup error: {str(e)}")
-
 
 @app.post("/api/auth/login")
 async def login(payload: LoginRequest, db: Session = Depends(get_db)):
@@ -1995,37 +2002,52 @@ async def get_token_info(symbol: str):
 @app.get("/api/crypto-news")
 async def get_crypto_news():
     try:
-        news = [
-            {
-                "headline": "Solana memecoins see surge in volume",
-                "source": "On‑chain Watch",
-                "url": "https://dexscreener.com/solana",
-            },
-            {
-                "headline": "New Solana DEX launches zero‑fee trading",
-                "source": "Solana News",
-                "url": "https://solana.com",
-            },
-            {
-                "headline": "DeFi TVL climbs to new monthly high",
-                "source": "DeFiPulse",
-                "url": "https://defipulse.com",
-            },
-            {
-                "headline": "BTC breaks key resistance level",
-                "source": "MarketWire",
-                "url": "https://www.coindesk.com",
-            },
-            {
-                "headline": "AI agents begin auto‑trading memecoins",
-                "source": "MemeBots",
-                "url": "https://twitter.com",
-            },
-        ]
-        return {"news": news}
+        # Example: using CryptoPanic or another news API you already wired.
+        # Keep your existing request; just change how you build `news`.
+        resp = requests.get(YOUR_CRYPTO_NEWS_URL, timeout=10)
+        raw = resp.json() or []
+
+        articles = []
+        for item in raw:
+            url = item.get("url") or item.get("link")
+            if not url:
+                continue
+
+            # Skip Twitter / X entirely
+            if "twitter.com" in url or "x.com" in url:
+                continue
+
+            source = item.get("source", {}).get("title") or item.get("source") or "Crypto News"
+            title = item.get("title") or item.get("headline") or "Crypto market update"
+
+            articles.append(
+                {
+                    "headline": title,
+                    "source": source,
+                    "url": url,
+                }
+            )
+
+        # Fallback if API gave only social links
+        if not articles:
+            articles = [
+                {
+                    "headline": "Bitcoin, Ethereum and Solana lead crypto market rebound",
+                    "source": "CoinDesk",
+                    "url": "https://www.coindesk.com/",
+                },
+                {
+                    "headline": "DeFi volumes rise as traders return to risk assets",
+                    "source": "The Block",
+                    "url": "https://www.theblock.co/",
+                },
+            ]
+
+        return {"news": articles[:20]}
     except Exception as e:
         print(f"Crypto news error: {e}")
         return {"news": []}
+
 
 
 @app.get("/api/market-news")
