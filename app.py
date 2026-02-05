@@ -178,7 +178,7 @@ class LoginRequest(BaseModel):
 
 # ======================= AUTH ENDPOINTS =======================
 
-@@app.post("/api/auth/signup")
+@app.post("/api/auth/signup")
 async def signup(payload: SignupRequest, db: Session = Depends(get_db)):
     email = payload.email
     username = payload.username
