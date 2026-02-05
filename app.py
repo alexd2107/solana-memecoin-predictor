@@ -1025,6 +1025,59 @@ def predict_trend(
         "lowest_price": price * max_drop_mult,
         "chart_analysis": chart_analysis,
     }
+@app.get("/api/solana-trending")
+async def solana_trending():
+    """
+    Return a list of trending Solana tokens for the homepage widget.
+    Uses Dexscreener; falls back to a safe static list if anything fails.
+    """
+    try:
+        url = "https://api.dexscreener.com/latest/dex/search?q=solana"
+        resp = requests.get(url, timeout=10)
+
+        if resp.status_code != 200:
+            print(f"Solana trending error: {resp.status_code} {resp.text[:200]}")
+            raise HTTPException(status_code=500, detail="Failed to fetch token data")
+
+        data = resp.json() or {}
+        pairs = data.get("pairs", []) or []
+
+        sol_pairs = [p for p in pairs if p.get("chainId") == "solana"]
+        sol_pairs = sol_pairs[:10]
+
+        tokens = []
+        for p in sol_pairs:
+            base = p.get("baseToken", {}) or {}
+            tokens.append(
+                {
+                    "symbol": base.get("symbol", "UNKNOWN"),
+                    "name": base.get("name", "Unknown Token"),
+                    "price": float(p.get("priceUsd", 0) or 0),
+                    "volume24h": float(p.get("volume", {}).get("h24", 0) or 0),
+                    "liquidity": float(p.get("liquidity", {}).get("usd", 0) or 0),
+                }
+            )
+
+        if not tokens:
+            raise HTTPException(status_code=500, detail="Failed to fetch token data")
+
+        return {"tokens": tokens}
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Solana trending exception: {e}")
+        # Safe fallback
+        return {
+            "tokens": [
+                {
+                    "symbol": "BONK",
+                    "name": "Bonk",
+                    "price": 0.0000025,
+                    "volume24h": 0,
+                    "liquidity": 0,
+                }
+            ]
+        }
 
 # ======================= STOCK NEWS & SENTIMENT =======================
 
