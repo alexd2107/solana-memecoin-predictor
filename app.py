@@ -1601,62 +1601,124 @@ async def predict(
     ),
     db: Session = Depends(get_db),
 ):
+    symbol = (symbol or "").strip()
     print("DEBUG /api/predict called with symbol:", symbol)
-    try:
-        user: Optional[User] = None
-        if credentials:
-            try:
-                user = get_current_user(credentials, db)
-            except HTTPException:
-                user = None
 
-        # Fetch token data from Dexscreener
+    user: Optional[User] = None
+    if credentials:
+        try:
+            user = get_current_user(credentials, db)
+        except HTTPException:
+            user = None
+
+    try:
+        # -----------------------------
+        # 1) Fetch token data (Dexscreener)
+        # -----------------------------
+        if not symbol:
+            return {
+                "success": False,
+                "error": "No symbol provided.",
+            }
+
         search_url = f"https://api.dexscreener.com/latest/dex/search?q={symbol}"
-        response = requests.get(search_url, timeout=10)
+        try:
+            response = requests.get(search_url, timeout=10)
+        except Exception as e:
+            print(f"ERROR Dexscreener request failed: {e}")
+            return {
+                "success": False,
+                "error": "Failed to reach Dexscreener API.",
+            }
 
         if response.status_code != 200:
-            raise HTTPException(status_code=500, detail="Failed to fetch token data")
+            print(f"ERROR Dexscreener status {response.status_code}: {response.text[:200]}")
+            return {
+                "success": False,
+                "error": "Failed to fetch token data.",
+            }
 
         data = response.json() or {}
-        pairs = data.get("pairs", []) or []
+        pairs = data.get("pairs") or []
 
         if not pairs:
-            raise HTTPException(
-                status_code=404,
-                detail="Token not found on any exchange",
-            )
+            return {
+                "success": False,
+                "error": "Token not found on any exchange.",
+            }
 
         sol_pairs = [p for p in pairs if p.get("chainId") == "solana"]
         pair = sol_pairs[0] if sol_pairs else pairs[0]
 
-        # Safely parse numeric fields
-        price = float(pair.get("priceUsd") or 0.0)
-        volume24h = float(pair.get("volume", {}).get("h24") or 0.0)
-        liquidity = float(pair.get("liquidity", {}).get("usd") or 0.0)
-        token_name = pair.get("baseToken", {}).get("name", "Unknown Token")
-        base_symbol = pair.get("baseToken", {}).get("symbol", symbol)
-        mint_address = pair.get("baseToken", {}).get("address")
+        # -----------------------------
+        # 2) Parse core market fields
+        # -----------------------------
+        def safe_float(value, default=0.0):
+            try:
+                return float(value)
+            except (TypeError, ValueError):
+                return float(default)
 
-        # On‑chain info and risk metrics
-        onchain_info = (
-            get_token_onchain_info(mint_address)
-            if mint_address
-            else {"creator": None, "top_holders": [], "lp_locked": True}
-        )
-        holder_metrics = get_holder_metrics(onchain_info)
+        price = safe_float(pair.get("priceUsd"))
+        volume24h = safe_float((pair.get("volume") or {}).get("h24"))
+        liquidity = safe_float((pair.get("liquidity") or {}).get("usd"))
+
+        base_info = pair.get("baseToken") or {}
+        token_name = base_info.get("name") or "Unknown Token"
+        base_symbol = base_info.get("symbol") or symbol
+        mint_address = base_info.get("address")
+
+        # -----------------------------
+        # 3) On‑chain info & holder / dev history metrics
+        # -----------------------------
+        onchain_info = {
+            "creator": None,
+            "top_holders": [],
+            "lp_locked": True,
+        }
+        holder_metrics = {
+            "holder_count": 0,
+            "top_holder_share": None,
+            "whale_risk": None,
+        }
         creator_history = None
 
-        if onchain_info.get("creator"):
-            creator_history = get_creator_history(onchain_info["creator"])
+        try:
+            if mint_address:
+                onchain_info = get_token_onchain_info(mint_address) or onchain_info
+                holder_metrics = get_holder_metrics(onchain_info) or holder_metrics
 
-        # Core prediction
-        prediction_result = predict_trend(
-            price, volume24h, liquidity, mint_address, holder_metrics, creator_history
-        )
+                if onchain_info.get("creator"):
+                    creator_history = get_creator_history(onchain_info["creator"])
+        except Exception as e:
+            # On‑chain analysis is useful but non‑critical; log and continue.
+            print(f"WARNING on‑chain analysis failed for {mint_address}: {e}")
+
+        # -----------------------------
+        # 4) Core prediction (trend, pump/rug risk, etc.)
+        # -----------------------------
+        prediction_result = {}
+        try:
+            prediction_result = predict_trend(
+                price=price,
+                volume24h=volume24h,
+                liquidity=liquidity,
+                mint_address=mint_address,
+                holder_metrics=holder_metrics,
+                creator_history=creator_history,
+            ) or {}
+        except Exception as e:
+            print(f"ERROR predict_trend failed: {e}")
+            return {
+                "success": False,
+                "error": "Prediction model failed for this token.",
+            }
 
         chart_analysis = prediction_result.get("chart_analysis", "")
 
-        # Discord notification (non‑critical)
+        # -----------------------------
+        # 5) Discord notification (non‑critical)
+        # -----------------------------
         try:
             send_discord_notification(
                 symbol=base_symbol,
@@ -1669,7 +1731,9 @@ async def predict(
         except Exception as e:
             print(f"Discord notification failed: {e}")
 
-        # Save history (non‑critical)
+        # -----------------------------
+        # 6) Save history (non‑critical)
+        # -----------------------------
         if user and db:
             try:
                 save_analysis_to_history(
@@ -1679,15 +1743,18 @@ async def predict(
                     name=token_name,
                     price=price,
                     prediction=prediction_result.get("prediction", ""),
-                    confidence=int(prediction_result.get("confidence", 0) or 0),
+                    confidence=int(prediction_result.get("confidence") or 0),
                     position_type=None,
                     db=db,
                 )
             except Exception as e:
                 print(f"Failed to save crypto analysis history: {e}")
 
-        # MAIN RESPONSE
+        # -----------------------------
+        # 7) Main response – includes all risk/behavior signals
+        # -----------------------------
         return {
+            "success": True,
             "symbol": base_symbol,
             "name": token_name,
             "price": price,
@@ -1702,20 +1769,20 @@ async def predict(
             "onchain_info": onchain_info,
             "holder_metrics": holder_metrics,
             "creator_history": creator_history,
-            # if your predict_trend returns these, frontend charts can use them
+            # if predict_trend exposes these, they’ll cover pump‑and‑dump / rug‑pull risk
             "short_term": prediction_result.get("short_term"),
             "long_term": prediction_result.get("long_term"),
+            "risk_flags": prediction_result.get("risk_flags"),  # e.g. bundling, dev dump risk
         }
 
-    except HTTPException as he:
-        print("DEBUG HTTPException in /api/predict:", he.detail)
-        raise he
     except Exception as e:
+        # Catch‑all so the endpoint never hard‑crashes.
         print("DEBUG Exception in /api/predict:", str(e))
-        raise HTTPException(
-            status_code=500,
-            detail=f"Prediction error: {str(e)}",
-        )
+        return {
+            "success": False,
+            "error": f"Prediction error: {str(e)}",
+        }
+
 
 # ======================= STOCK PREDICT ENDPOINT =======================
 def send_stock_discord_notification(
