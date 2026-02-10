@@ -1279,6 +1279,163 @@ def get_stock_fundamentals(ticker: str) -> dict:
             "target_price": 0,
         }
 
+def get_advanced_price_action(ticker: str) -> dict:
+    """
+    Extra TA features inspired by Murphy, Schwager, O'Neil, Nison.
+    Uses yfinance OHLCV only – no external APIs.
+    """
+    try:
+        stock = yf.Ticker(ticker)
+        hist = stock.history(period="6mo")
+
+        if len(hist) < 40:
+            return {
+                "structure": "unknown",
+                "pattern": None,
+                "pattern_strength": 0,
+                "candle_signal": None,
+                "candle_bias": "neutral",
+                "relative_strength": 0.0,
+                "near_52w_high": False,
+                "volume_squeeze": False,
+                "volume_expansion": False,
+            }
+
+        close = hist["Close"]
+        high = hist["High"]
+        low = hist["Low"]
+        vol = hist["Volume"]
+
+        # ---------- Trend structure: higher highs / higher lows ----------
+        recent = close[-20:]
+        highs = recent.rolling(window=5).max()
+        lows = recent.rolling(window=5).min()
+
+        structure = "sideways"
+        if highs.is_monotonic_increasing and lows.is_monotonic_increasing:
+            structure = "higher_highs_higher_lows"
+        elif highs.is_monotonic_decreasing and lows.is_monotonic_decreasing:
+            structure = "lower_highs_lower_lows"
+
+        # ---------- 52-week high proximity ----------
+        try:
+            year_hist = stock.history(period="1y")
+            if len(year_hist) > 0:
+                year_close = year_hist["Close"]
+                hi_52w = year_close.max()
+                last_year_close = year_close.iloc[-1]
+                near_52w_high = bool(last_year_close >= 0.9 * hi_52w)
+            else:
+                near_52w_high = False
+        except Exception:
+            near_52w_high = False
+
+        # ---------- Relative strength vs SPY ----------
+        try:
+            spy = yf.Ticker("SPY").history(period="6mo")["Close"]
+            c_aligned, spy_aligned = close.align(spy, join="inner")
+            if len(c_aligned) > 1:
+                rs_series = c_aligned / spy_aligned
+                relative_strength = float(rs_series.iloc[-1] / rs_series.iloc[0] - 1.0)
+            else:
+                relative_strength = 0.0
+        except Exception:
+            relative_strength = 0.0
+
+        # ---------- Volume behavior ----------
+        recent_vol = vol[-40:]
+        avg_vol = recent_vol.mean()
+        last_vol = recent_vol.iloc[-1]
+        volume_squeeze = bool(len(recent_vol) >= 10 and (recent_vol[-10:] < avg_vol * 0.6).all())
+        volume_expansion = bool(last_vol > avg_vol * 1.5)
+
+        # ---------- Simple pattern tags ----------
+        pattern = None
+        pattern_strength = 0
+
+        # Double bottom (very rough)
+        last20 = close[-20:]
+        local_min = last20[(last20.shift(1) > last20) & (last20.shift(-1) > last20)]
+        if len(local_min) >= 2:
+            lows_sorted = local_min.sort_values()
+            first_low = lows_sorted.iloc[0]
+            second_low = lows_sorted.iloc[1]
+            if abs(second_low - first_low) / first_low < 0.03:
+                pattern = "double_bottom"
+                pattern_strength = 2
+
+        # Rectangle / tight range
+        rng = last20.max() - last20.min()
+        if pattern is None and rng / last20.mean() < 0.05:
+            pattern = "rectangle_range"
+            pattern_strength = 1
+
+        # ---------- Candlestick signals on last bar ----------
+        candle_signal = None
+        candle_bias = "neutral"
+
+        last_row = hist.iloc[-1]
+        prev_row = hist.iloc[-2]
+
+        body = abs(last_row["Close"] - last_row["Open"])
+        full = last_row["High"] - last_row["Low"]
+        upper_wick = last_row["High"] - max(last_row["Close"], last_row["Open"])
+        lower_wick = min(last_row["Close"], last_row["Open"]) - last_row["Low"]
+
+        if full > 0:
+            # Hammer / hanging man
+            if lower_wick > 2 * body and upper_wick < body:
+                candle_signal = "hammer_like"
+                candle_bias = "bullish"
+            # Shooting star
+            elif upper_wick > 2 * body and lower_wick < body:
+                candle_signal = "shooting_star_like"
+                candle_bias = "bearish"
+            else:
+                prev_body = abs(prev_row["Close"] - prev_row["Open"])
+                # Simple engulfing approximation
+                if body > prev_body:
+                    # Bullish engulfing-ish
+                    if (
+                        last_row["Close"] > last_row["Open"]
+                        and last_row["Open"] < min(prev_row["Open"], prev_row["Close"])
+                        and last_row["Close"] > max(prev_row["Open"], prev_row["Close"])
+                    ):
+                        candle_signal = "bullish_engulfing_like"
+                        candle_bias = "bullish"
+                    # Bearish engulfing-ish
+                    elif (
+                        last_row["Close"] < last_row["Open"]
+                        and last_row["Open"] > max(prev_row["Open"], prev_row["Close"])
+                        and last_row["Close"] < min(prev_row["Open"], prev_row["Close"])
+                    ):
+                        candle_signal = "bearish_engulfing_like"
+                        candle_bias = "bearish"
+
+        return {
+            "structure": structure,
+            "pattern": pattern,
+            "pattern_strength": pattern_strength,
+            "candle_signal": candle_signal,
+            "candle_bias": candle_bias,
+            "relative_strength": relative_strength,
+            "near_52w_high": near_52w_high,
+            "volume_squeeze": volume_squeeze,
+            "volume_expansion": volume_expansion,
+        }
+    except Exception as e:
+        print(f"Advanced price action error for {ticker}: {e}")
+        return {
+            "structure": "unknown",
+            "pattern": None,
+            "pattern_strength": 0,
+            "candle_signal": None,
+            "candle_bias": "neutral",
+            "relative_strength": 0.0,
+            "near_52w_high": False,
+            "volume_squeeze": False,
+            "volume_expansion": False,
+        }
 
 def get_stock_technicals(ticker: str) -> dict:
     try:
@@ -1344,6 +1501,8 @@ def predict_stock_trend_with_levels(
     sentiment = news_sentiment.get("sentiment", "neutral")
     sentiment_score = news_sentiment.get("sentiment_score", 0)
 
+    # ===== 1) Fundamentals (Murphy/Schwager foundation) =====
+
     # valuation
     if 10 <= pe <= 30 or 10 <= fwd_pe <= 30:
         score += 2
@@ -1397,6 +1556,8 @@ def predict_stock_trend_with_levels(
     else:
         reasons.append(f"⚠️ Weak ROE ({roe*100:.1f}%) (0)")
 
+    # ===== 2) Core technicals (trend + RSI, Murphy) =====
+
     # RSI
     if rsi < 30:
         score += 2
@@ -1408,7 +1569,7 @@ def predict_stock_trend_with_levels(
         score -= 1
         reasons.append(f"❌ RSI {rsi:.1f} — overbought zone (-1)")
 
-    # trend
+    # trend via moving averages
     if trend == "bullish":
         score += 2
         reasons.append("✅ Price above key moving averages — bullish trend (+2)")
@@ -1418,7 +1579,44 @@ def predict_stock_trend_with_levels(
     else:
         reasons.append("⚠️ Mixed/sideways technical trend (0)")
 
-    # news
+    # ===== 3) Structure & patterns (Murphy + Schwager) =====
+
+    structure = technicals.get("structure", "sideways")
+    pattern = technicals.get("pattern")
+    pattern_strength = technicals.get("pattern_strength", 0)
+
+    if structure == "higher_highs_higher_lows":
+        score += 2
+        reasons.append("✅ Clear uptrend structure (higher highs & higher lows) (+2)")
+    elif structure == "lower_highs_lower_lows":
+        score -= 2
+        reasons.append("❌ Clear downtrend structure (lower highs & lower lows) (-2)")
+    else:
+        reasons.append("⚠️ No clean trend structure (0)")
+
+    if pattern == "double_bottom":
+        score += 2
+        reasons.append("✅ Double bottom base forming — potential reversal (+2)")
+    elif pattern == "rectangle_range":
+        score += 1
+        reasons.append("⚡ Sideways base / rectangle — watch for breakout (+1)")
+
+    # ===== 4) Candlestick confirmation (Nison) =====
+
+    candle_signal = technicals.get("candle_signal")
+    candle_bias = technicals.get("candle_bias", "neutral")
+
+    if candle_signal and candle_bias == "bullish" and trend != "bearish":
+        score += 1
+        reasons.append(f"✅ Bullish candle signal ({candle_signal}) near support (+1)")
+    elif candle_signal and candle_bias == "bearish" and trend != "bullish":
+        score -= 1
+        reasons.append(f"❌ Bearish candle signal ({candle_signal}) near resistance (-1)")
+    elif candle_signal:
+        reasons.append(f"⚠️ Candle signal ({candle_signal}) in mixed context (0)")
+
+    # ===== 5) News sentiment (Schwager risk filters) =====
+
     if sentiment == "bullish":
         if sentiment_score >= 5:
             score += 3
@@ -1444,7 +1642,8 @@ def predict_stock_trend_with_levels(
     else:
         reasons.append("⚠️ News sentiment: neutral/unclear (0)")
 
-    # analyst rating
+    # ===== 6) Analyst view & targets =====
+
     if analyst_rating in ["strong_buy", "buy"]:
         score += 2
         reasons.append(
@@ -1461,7 +1660,6 @@ def predict_stock_trend_with_levels(
     else:
         reasons.append("⚠️ Analyst rating: not available (0)")
 
-    # analyst target vs current
     if target_price and target_price > 0:
         upside = (target_price - price) / price
         if upside > 0.3:
@@ -1486,10 +1684,43 @@ def predict_stock_trend_with_levels(
     else:
         reasons.append("⚠️ No clear analyst target price (0)")
 
-        max_score = 20
+    # ===== 7) O'Neil leadership & volume behavior =====
+
+    relative_strength = technicals.get("relative_strength", 0.0)
+    near_52w_high = technicals.get("near_52w_high", False)
+    volume_squeeze = technicals.get("volume_squeeze", False)
+    volume_expansion = technicals.get("volume_expansion", False)
+
+    if relative_strength > 0.1:
+        score += 2
+        reasons.append(f"✅ Stock outperforming market (RS +{relative_strength*100:.1f}%) (+2)")
+    elif relative_strength > 0.0:
+        score += 1
+        reasons.append(f"⚡ Mild outperformance vs market (RS +{relative_strength*100:.1f}%) (+1)")
+    elif relative_strength < -0.1:
+        score -= 2
+        reasons.append(f"❌ Underperforming market (RS {relative_strength*100:.1f}%) (-2)")
+    else:
+        reasons.append(f"⚠️ In-line with market (RS {relative_strength*100:.1f}%) (0)")
+
+    if near_52w_high:
+        score += 2
+        reasons.append("✅ Price near 52-week highs — leading behavior (+2)")
+    else:
+        reasons.append("⚠️ Not near 52-week highs (0)")
+
+    if volume_squeeze:
+        score += 1
+        reasons.append("⚡ Volume contraction in recent base — potential coiled move (+1)")
+    if volume_expansion:
+        score += 2
+        reasons.append("✅ Recent volume expansion — institutional interest (+2)")
+
+    # ===== 8) Map score to long/short + trade plan =====
+
+    max_score = 30
     normalized_score = max(0, min(max_score, score))
 
-    # --- Map score to prediction + side ---
     if normalized_score >= 15:
         prediction = "🏆 STRONG BUY"
         position_type = "AGGRESSIVE LONG"
@@ -1516,10 +1747,9 @@ def predict_stock_trend_with_levels(
         risk_label = "HIGH RISK"
         direction = "short"
 
-    # --- Trade levels + leverage / spot decision ---
-
+    # Trade levels + leverage / spot decision
     buy_price = price
-    risk_pct = 0.03  # 3% risk per trade
+    risk_pct = 0.03  # 3%
 
     if direction == "long":
         stop_loss = buy_price * (1 - risk_pct)
@@ -1527,28 +1757,22 @@ def predict_stock_trend_with_levels(
         max_upside_price = buy_price * 1.15
         max_downside_price = buy_price * 0.85
     elif direction == "short":
-        # For shorts, price going UP is loss, DOWN is profit
         stop_loss = buy_price * (1 + risk_pct)
         take_profit = buy_price * (1 - 2 * risk_pct)
-        max_upside_price = buy_price * 0.85   # best case: big drop
-        max_downside_price = buy_price * 1.15 # worst case: squeeze higher
+        max_upside_price = buy_price * 0.85   # best case: drop
+        max_downside_price = buy_price * 1.15 # worst case: squeeze
     else:  # flat / wait
         stop_loss = buy_price * (1 - risk_pct)
         take_profit = buy_price * (1 + 2 * risk_pct)
         max_upside_price = buy_price * 1.10
         max_downside_price = buy_price * 0.90
 
-    # Adjust with analyst target if available
     if target_price and target_price > 0:
-        if direction == "long":
-            if target_price > max_upside_price:
-                max_upside_price = target_price
-        elif direction == "short":
-            if target_price < max_upside_price:
-                # For shorts, lower target = more upside
-                max_upside_price = target_price
+        if direction == "long" and target_price > max_upside_price:
+            max_upside_price = target_price
+        elif direction == "short" and target_price < max_upside_price:
+            max_upside_price = target_price
 
-    # Risk/reward from the long perspective (just for gating)
     reward = abs(take_profit - buy_price)
     risk = abs(buy_price - stop_loss)
     rr = reward / risk if risk > 0 else 0
@@ -1573,8 +1797,9 @@ def predict_stock_trend_with_levels(
                 trade_mode = "SPOT LONG"
         elif prediction == "⚖️ HOLD / NEUTRAL":
             trade_mode = "WAIT / SPOT ONLY"
+        else:
+            trade_mode = "WAIT / NO POSITION"
     elif direction == "short":
-        # Only short if risk/reward is decent
         if rr >= 2:
             should_buy_now = True
             leverage_side = "short"
@@ -1602,38 +1827,6 @@ def predict_stock_trend_with_levels(
 💸 ENTRY PRICE: ${buy_price:.2f}
 🛡️ STOP LOSS: ${stop_loss:.2f}
 🎯 TAKE PROFIT: ${take_profit:.2f}
-📈 MAX UPSIDE PRICE: ${max_upside_price:.2f}
-📉 MAX DOWNSIDE PRICE: ${max_downside_price:.2f}
-
-{chr(10).join(reasons)}"""
-
-    return {
-        "prediction": prediction,
-        "position_type": position_type,
-        "score": normalized_score,
-        "max_score": max_score,
-        "reasoning": reasoning_output,
-        "direction": direction,
-        "should_buy_now": should_buy_now,
-        "buy_price": buy_price,
-        "stop_loss": stop_loss,
-        "take_profit": take_profit,
-        "max_upside_price": max_upside_price,
-        "max_downside_price": max_downside_price,
-        "use_leverage": use_leverage,
-        "leverage_side": leverage_side,
-        "suggested_leverage": suggested_leverage,
-    }
-
-    reasoning_output = f"""INVESTMENT SCORE: {normalized_score}/{max_score}
-
-🎯 PREDICTION: {prediction}
-📍 POSITION: {position_type}
-⚠️ RISK PROFILE: {risk_label}
-
-🎯 TARGET BUY PRICE: ${buy_price:.2f}
-💰 TARGET SELL PRICE: ${take_profit:.2f}
-🛡️ STOP LOSS: ${stop_loss:.2f}
 📈 MAX UPSIDE PRICE: ${max_upside_price:.2f}
 📉 MAX DOWNSIDE PRICE: ${max_downside_price:.2f}
 
@@ -1940,7 +2133,9 @@ async def predict_stock(
 
         price = data["price"]
         fundamentals = get_stock_fundamentals(ticker)
-        technicals = get_stock_technicals(ticker)
+               technicals = get_stock_technicals(ticker)
+        advanced = get_advanced_price_action(ticker)
+        technicals.update(advanced)
         news_articles = get_stock_news(ticker)
         news_sentiment = analyze_news_sentiment(ticker, news_articles)
 
