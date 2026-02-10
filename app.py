@@ -5,6 +5,7 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.middleware.cors import CORSMiddleware
 import requests
 import pickle
+import os
 import numpy as np
 from datetime import datetime, timedelta
 import random
@@ -40,6 +41,7 @@ SOLSCAN_API_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJjcmVhdGVkQXQiOjE3Njgx
 HELIUS_API_KEY = "aa25304b-753b-466b-ad17-598a69c0cb7c"
 HELIUS_URL = f"https://mainnet.helius-rpc.com/?api-key={HELIUS_API_KEY}"
 FINNHUB_API_KEY = "d5jqh61r01qjaedr7460"
+CRYPTO_NEWS_API_KEY = os.getenv("ZzNGjDsDiT9GDgcOA4Zw5mVkDGf5kjlG")
 
 DISCORD_WEBHOOK_CRYPTO = "https://discord.com/api/webhooks/1437292750960594975/2EHZkITnwOC3PwG-h1es1hokmehqlcvUpP6QJPMsIdMjI54YZtP0NdNyEzuE-CCwbRF5"
 DISCORD_WEBHOOK_STOCK = "https://discord.com/api/webhooks/1460815556130246729/7yfC-1AAJ51T9aVrtcU0cNQBxfZXLl177kNMiSVJfd6bamVHG-4u4VRJAPh8d94wlK1s"
@@ -2002,33 +2004,35 @@ async def get_token_info(symbol: str):
 @app.get("/api/crypto-news")
 async def get_crypto_news():
     try:
-        # Example: using CryptoPanic or another news API you already wired.
-        # Keep your existing request; just change how you build `news`.
-        resp = requests.get(YOUR_CRYPTO_NEWS_URL, timeout=10)
-        raw = resp.json() or []
-
         articles = []
-        for item in raw:
-            url = item.get("url") or item.get("link")
-            if not url:
-                continue
 
-            # Skip Twitter / X entirely
-            if "twitter.com" in url or "x.com" in url:
-                continue
-
-            source = item.get("source", {}).get("title") or item.get("source") or "Crypto News"
-            title = item.get("title") or item.get("headline") or "Crypto market update"
-
-            articles.append(
-                {
-                    "headline": title,
-                    "source": source,
-                    "url": url,
-                }
+        if CRYPTO_NEWS_API_KEY:
+            url = (
+                "https://cryptonews-api.com/api/v1"
+                "?tickers=SOL,BTC,ETH"
+                "&items=20"
+                f"&token={CRYPTO_NEWS_API_KEY}"
             )
+            resp = requests.get(url, timeout=10)
+            data = resp.json() or {}
 
-        # Fallback if API gave only social links
+            for item in data.get("data", []):
+                link = item.get("news_url")
+                if not link:
+                    continue
+                # Skip Twitter / X
+                if "twitter.com" in link or "x.com" in link:
+                    continue
+
+                articles.append(
+                    {
+                        "headline": item.get("title") or "Crypto market update",
+                        "source": item.get("source_name") or "Crypto News",
+                        "url": link,
+                    }
+                )
+
+        # Always provide something if API gave nothing useful
         if not articles:
             articles = [
                 {
@@ -2047,6 +2051,7 @@ async def get_crypto_news():
     except Exception as e:
         print(f"Crypto news error: {e}")
         return {"news": []}
+
 
 
 
