@@ -1486,78 +1486,144 @@ def predict_stock_trend_with_levels(
     else:
         reasons.append("⚠️ No clear analyst target price (0)")
 
-    max_score = 20
+        max_score = 20
     normalized_score = max(0, min(max_score, score))
 
+    # --- Map score to prediction + side ---
     if normalized_score >= 15:
         prediction = "🏆 STRONG BUY"
         position_type = "AGGRESSIVE LONG"
         risk_label = "LOW–MODERATE RISK"
+        direction = "long"
     elif normalized_score >= 11:
         prediction = "✅ BUY"
         position_type = "STANDARD LONG"
         risk_label = "MODERATE RISK"
+        direction = "long"
     elif normalized_score >= 7:
         prediction = "⚖️ HOLD / NEUTRAL"
         position_type = "NEUTRAL / WAIT"
         risk_label = "BALANCED RISK"
+        direction = "flat"
     elif normalized_score >= 4:
-        prediction = "⚠️ WEAK / TRIM"
-        position_type = "REDUCE / AVOID NEW ENTRIES"
+        prediction = "⚠️ STRONG SHORT CANDIDATE"
+        position_type = "TACTICAL SHORT"
         risk_label = "ELEVATED RISK"
+        direction = "short"
     else:
-        prediction = "❌ AVOID"
-        position_type = "NO POSITION / EXIT"
+        prediction = "❌ HIGH-CONVICTION SHORT"
+        position_type = "AGGRESSIVE SHORT"
         risk_label = "HIGH RISK"
+        direction = "short"
 
-    # trade levels + leverage
-    direction = "avoid"
+    # --- Trade levels + leverage / spot decision ---
+
+    buy_price = price
+    risk_pct = 0.03  # 3% risk per trade
+
+    if direction == "long":
+        stop_loss = buy_price * (1 - risk_pct)
+        take_profit = buy_price * (1 + 2 * risk_pct)
+        max_upside_price = buy_price * 1.15
+        max_downside_price = buy_price * 0.85
+    elif direction == "short":
+        # For shorts, price going UP is loss, DOWN is profit
+        stop_loss = buy_price * (1 + risk_pct)
+        take_profit = buy_price * (1 - 2 * risk_pct)
+        max_upside_price = buy_price * 0.85   # best case: big drop
+        max_downside_price = buy_price * 1.15 # worst case: squeeze higher
+    else:  # flat / wait
+        stop_loss = buy_price * (1 - risk_pct)
+        take_profit = buy_price * (1 + 2 * risk_pct)
+        max_upside_price = buy_price * 1.10
+        max_downside_price = buy_price * 0.90
+
+    # Adjust with analyst target if available
+    if target_price and target_price > 0:
+        if direction == "long":
+            if target_price > max_upside_price:
+                max_upside_price = target_price
+        elif direction == "short":
+            if target_price < max_upside_price:
+                # For shorts, lower target = more upside
+                max_upside_price = target_price
+
+    # Risk/reward from the long perspective (just for gating)
+    reward = abs(take_profit - buy_price)
+    risk = abs(buy_price - stop_loss)
+    rr = reward / risk if risk > 0 else 0
+
     should_buy_now = False
     use_leverage = False
     leverage_side = None
     suggested_leverage = 1.0
+    trade_mode = "NO TRADE"
 
-    buy_price = price
-    risk_pct = 0.03
-    stop_loss = buy_price * (1 - risk_pct)
-    take_profit = buy_price * (1 + 2 * risk_pct)
-
-    reward = take_profit - buy_price
-    risk = buy_price - stop_loss
-    rr = reward / risk if risk > 0 else 0
-
-    max_upside_price = buy_price * 1.15
-    max_downside_price = buy_price * 0.85
-
-    if target_price and target_price > 0:
-        if target_price > max_upside_price:
-            max_upside_price = target_price
-        elif target_price < max_downside_price:
-            max_downside_price = target_price
-
-    if prediction in ("🏆 STRONG BUY", "✅ BUY") and rr >= 2:
-        direction = "long"
-        should_buy_now = True
-        if normalized_score >= 15:
-            use_leverage = True
+    if direction == "long":
+        if prediction in ("🏆 STRONG BUY", "✅ BUY") and rr >= 2:
+            should_buy_now = True
             leverage_side = "long"
-            suggested_leverage = 1.5
+            if normalized_score >= 15:
+                use_leverage = True
+                suggested_leverage = 1.5
+                trade_mode = "LEVERAGED LONG"
+            else:
+                use_leverage = False
+                suggested_leverage = 1.0
+                trade_mode = "SPOT LONG"
+        elif prediction == "⚖️ HOLD / NEUTRAL":
+            trade_mode = "WAIT / SPOT ONLY"
+    elif direction == "short":
+        # Only short if risk/reward is decent
+        if rr >= 2:
+            should_buy_now = True
+            leverage_side = "short"
+            if normalized_score <= 3:
+                use_leverage = True
+                suggested_leverage = 1.5
+                trade_mode = "LEVERAGED SHORT"
+            else:
+                use_leverage = False
+                suggested_leverage = 1.0
+                trade_mode = "SPOT SHORT"
         else:
-            use_leverage = False
-            leverage_side = "long"
-            suggested_leverage = 1.0
-    elif prediction == "⚖️ HOLD / NEUTRAL":
-        direction = "long"
-        should_buy_now = False
-        use_leverage = False
-        leverage_side = "long"
-        suggested_leverage = 1.0
+            trade_mode = "WATCH FOR BETTER ENTRY"
     else:
-        direction = "avoid"
-        should_buy_now = False
-        use_leverage = False
-        leverage_side = None
-        suggested_leverage = 1.0
+        trade_mode = "WAIT / NO POSITION"
+
+    reasoning_output = f"""INVESTMENT SCORE: {normalized_score}/{max_score}
+
+🎯 PREDICTION: {prediction}
+📍 POSITION: {position_type}
+⚠️ RISK PROFILE: {risk_label}
+
+🔀 TRADE MODE: {trade_mode}
+📉 SIDE: {direction.upper()}
+💸 ENTRY PRICE: ${buy_price:.2f}
+🛡️ STOP LOSS: ${stop_loss:.2f}
+🎯 TAKE PROFIT: ${take_profit:.2f}
+📈 MAX UPSIDE PRICE: ${max_upside_price:.2f}
+📉 MAX DOWNSIDE PRICE: ${max_downside_price:.2f}
+
+{chr(10).join(reasons)}"""
+
+    return {
+        "prediction": prediction,
+        "position_type": position_type,
+        "score": normalized_score,
+        "max_score": max_score,
+        "reasoning": reasoning_output,
+        "direction": direction,
+        "should_buy_now": should_buy_now,
+        "buy_price": buy_price,
+        "stop_loss": stop_loss,
+        "take_profit": take_profit,
+        "max_upside_price": max_upside_price,
+        "max_downside_price": max_downside_price,
+        "use_leverage": use_leverage,
+        "leverage_side": leverage_side,
+        "suggested_leverage": suggested_leverage,
+    }
 
     reasoning_output = f"""INVESTMENT SCORE: {normalized_score}/{max_score}
 
