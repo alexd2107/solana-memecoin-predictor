@@ -1602,6 +1602,11 @@ async def predict(
     db: Session = Depends(get_db),
 ):
     symbol = (symbol or "").strip()
+
+    # If user typed a known mint address, map it to its symbol
+    if symbol in ADDRESS_SYMBOL_MAP:
+        symbol = ADDRESS_SYMBOL_MAP[symbol]
+
     print("DEBUG /api/predict called with symbol:", symbol)
 
     user: Optional[User] = None
