@@ -1885,7 +1885,6 @@ def predict_stock_trend_with_levels(
         "leverage_side": leverage_side,
         "suggested_leverage": suggested_leverage,
     }
-```
 
 # ======================= CRYPTO PREDICT ENDPOINT =======================
 
