@@ -920,10 +920,11 @@
         }
 
         async function viewAllUsers() {
-            if (!currentUser || !currentUser.is_dev) {
-                alert('Developer access only');
-                return;
-            }
+    if (!isDevUser(currentUser)) {
+        alert('Developer access only');
+        return;
+    }
+
 
             try {
                 const response = await fetch('/api/admin/users', { headers: getAuthHeaders() });
@@ -959,10 +960,11 @@
         }
 
         async function viewAllAnalyses() {
-            if (!currentUser || !currentUser.is_dev) {
-                alert('Developer access only');
-                return;
-            }
+    if (!isDevUser(currentUser)) {
+        alert('Developer access only');
+        return;
+    }
+
 
             try {
                 const response = await fetch('/api/admin/analyses?limit=100', { headers: getAuthHeaders() });
@@ -1126,6 +1128,9 @@
             }
             return {};
         }
+function isDevUser(user) {
+    return user && user.email === "dev@memecoinmetrics.com";
+}
 
         async function loadSolanaPrice() {
             try {
