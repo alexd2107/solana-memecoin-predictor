@@ -1212,6 +1212,11 @@ def analyze_news_sentiment(ticker: str, news_articles: list) -> dict:
 
 # ======================= STOCK FUNCTIONS =======================
 
+You just need `max_score` defined once at the top of `predict_stock_trend_with_levels`, then remove the re‑definition near the bottom.
+
+Here is your stock section with that fixed (only changes are where `max_score` is set):
+
+```python
 def get_stock_data(ticker: str) -> Optional[dict]:
     try:
         stock = yf.Ticker(ticker)
@@ -1278,6 +1283,7 @@ def get_stock_fundamentals(ticker: str) -> dict:
             "analyst_rating": "none",
             "target_price": 0,
         }
+
 
 def get_advanced_price_action(ticker: str) -> dict:
     """
@@ -1346,7 +1352,9 @@ def get_advanced_price_action(ticker: str) -> dict:
         recent_vol = vol[-40:]
         avg_vol = recent_vol.mean()
         last_vol = recent_vol.iloc[-1]
-        volume_squeeze = bool(len(recent_vol) >= 10 and (recent_vol[-10:] < avg_vol * 0.6).all())
+        volume_squeeze = bool(
+            len(recent_vol) >= 10 and (recent_vol[-10:] < avg_vol * 0.6).all()
+        )
         volume_expansion = bool(last_vol > avg_vol * 1.5)
 
         # ---------- Simple pattern tags ----------
@@ -1398,16 +1406,20 @@ def get_advanced_price_action(ticker: str) -> dict:
                     # Bullish engulfing-ish
                     if (
                         last_row["Close"] > last_row["Open"]
-                        and last_row["Open"] < min(prev_row["Open"], prev_row["Close"])
-                        and last_row["Close"] > max(prev_row["Open"], prev_row["Close"])
+                        and last_row["Open"]
+                        < min(prev_row["Open"], prev_row["Close"])
+                        and last_row["Close"]
+                        > max(prev_row["Open"], prev_row["Close"])
                     ):
                         candle_signal = "bullish_engulfing_like"
                         candle_bias = "bullish"
                     # Bearish engulfing-ish
                     elif (
                         last_row["Close"] < last_row["Open"]
-                        and last_row["Open"] > max(prev_row["Open"], prev_row["Close"])
-                        and last_row["Close"] < min(prev_row["Open"], prev_row["Close"])
+                        and last_row["Open"]
+                        > max(prev_row["Open"], prev_row["Close"])
+                        and last_row["Close"]
+                        < min(prev_row["Open"], prev_row["Close"])
                     ):
                         candle_signal = "bearish_engulfing_like"
                         candle_bias = "bearish"
@@ -1436,6 +1448,7 @@ def get_advanced_price_action(ticker: str) -> dict:
             "volume_squeeze": False,
             "volume_expansion": False,
         }
+
 
 def get_stock_technicals(ticker: str) -> dict:
     try:
@@ -1470,7 +1483,12 @@ def get_stock_technicals(ticker: str) -> dict:
         else:
             trend = "neutral"
 
-        return {"rsi": float(rsi), "ma50": float(ma50), "ma200": float(ma200), "trend": trend}
+        return {
+            "rsi": float(rsi),
+            "ma50": float(ma50),
+            "ma200": float(ma200),
+            "trend": trend,
+        }
     except Exception as e:
         print(f"Technicals error for {ticker}: {e}")
         return {"rsi": 50, "ma50": 0, "ma200": 0, "trend": "neutral"}
@@ -1485,6 +1503,7 @@ def predict_stock_trend_with_levels(
 ) -> dict:
     score = 0
     reasons = []
+    max_score = 30  # <-- define once at top
 
     pe = fundamentals.get("pe_ratio", 0)
     fwd_pe = fundamentals.get("forward_pe", 0)
@@ -1539,12 +1558,18 @@ def predict_stock_trend_with_levels(
     # balance sheet
     if 0 < debt_to_equity < 100:
         score += 2
-        reasons.append(f"✅ Reasonable leverage (Debt/Equity {debt_to_equity:.0f}) (+2)")
+        reasons.append(
+            f"✅ Reasonable leverage (Debt/Equity {debt_to_equity:.0f}) (+2)"
+        )
     elif debt_to_equity >= 200:
         score -= 1
-        reasons.append(f"❌ High leverage (Debt/Equity {debt_to_equity:.0f}) (-1)")
+        reasons.append(
+            f"❌ High leverage (Debt/Equity {debt_to_equity:.0f}) (-1)"
+        )
     else:
-        reasons.append(f"⚠️ Leverage profile mixed (Debt/Equity {debt_to_equity:.0f}) (0)")
+        reasons.append(
+            f"⚠️ Leverage profile mixed (Debt/Equity {debt_to_equity:.0f}) (0)"
+        )
 
     # ROE
     if roe > 0.15:
@@ -1608,12 +1633,18 @@ def predict_stock_trend_with_levels(
 
     if candle_signal and candle_bias == "bullish" and trend != "bearish":
         score += 1
-        reasons.append(f"✅ Bullish candle signal ({candle_signal}) near support (+1)")
+        reasons.append(
+            f"✅ Bullish candle signal ({candle_signal}) near support (+1)"
+        )
     elif candle_signal and candle_bias == "bearish" and trend != "bullish":
         score -= 1
-        reasons.append(f"❌ Bearish candle signal ({candle_signal}) near resistance (-1)")
+        reasons.append(
+            f"❌ Bearish candle signal ({candle_signal}) near resistance (-1)"
+        )
     elif candle_signal:
-        reasons.append(f"⚠️ Candle signal ({candle_signal}) in mixed context (0)")
+        reasons.append(
+            f"⚠️ Candle signal ({candle_signal}) in mixed context (0)"
+        )
 
     # ===== 5) News sentiment (Schwager risk filters) =====
 
@@ -1693,15 +1724,23 @@ def predict_stock_trend_with_levels(
 
     if relative_strength > 0.1:
         score += 2
-        reasons.append(f"✅ Stock outperforming market (RS +{relative_strength*100:.1f}%) (+2)")
+        reasons.append(
+            f"✅ Stock outperforming market (RS +{relative_strength*100:.1f}%) (+2)"
+        )
     elif relative_strength > 0.0:
         score += 1
-        reasons.append(f"⚡ Mild outperformance vs market (RS +{relative_strength*100:.1f}%) (+1)")
+        reasons.append(
+            f"⚡ Mild outperformance vs market (RS +{relative_strength*100:.1f}%) (+1)"
+        )
     elif relative_strength < -0.1:
         score -= 2
-        reasons.append(f"❌ Underperforming market (RS {relative_strength*100:.1f}%) (-2)")
+        reasons.append(
+            f"❌ Underperforming market (RS {relative_strength*100:.1f}%) (-2)"
+        )
     else:
-        reasons.append(f"⚠️ In-line with market (RS {relative_strength*100:.1f}%) (0)")
+        reasons.append(
+            f"⚠️ In-line with market (RS {relative_strength*100:.1f}%) (0)"
+        )
 
     if near_52w_high:
         score += 2
@@ -1711,14 +1750,17 @@ def predict_stock_trend_with_levels(
 
     if volume_squeeze:
         score += 1
-        reasons.append("⚡ Volume contraction in recent base — potential coiled move (+1)")
+        reasons.append(
+            "⚡ Volume contraction in recent base — potential coiled move (+1)"
+        )
     if volume_expansion:
         score += 2
-        reasons.append("✅ Recent volume expansion — institutional interest (+2)")
+        reasons.append(
+            "✅ Recent volume expansion — institutional interest (+2)"
+        )
 
     # ===== 8) Map score to long/short + trade plan =====
 
-    max_score = 30
     normalized_score = max(0, min(max_score, score))
 
     if normalized_score >= 15:
@@ -1849,6 +1891,7 @@ def predict_stock_trend_with_levels(
         "leverage_side": leverage_side,
         "suggested_leverage": suggested_leverage,
     }
+```
 
 # ======================= CRYPTO PREDICT ENDPOINT =======================
 
