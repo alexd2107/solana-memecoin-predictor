@@ -2163,17 +2163,18 @@ async def predict_stock(
             except HTTPException:
                 user = None
 
+        # ↓ Everything here stays inside the try and inside the function
         data = get_stock_data(ticker)
-if not data:
-    raise HTTPException(status_code=404, detail="Stock not found")
+        if not data:
+            raise HTTPException(status_code=404, detail="Stock not found")
 
-price = data["price"]
-fundamentals = get_stock_fundamentals(ticker)
-technicals = get_stock_technicals(ticker)          
-advanced = get_advanced_price_action(ticker)
-technicals.update(advanced)
-news_articles = get_stock_news(ticker)
-news_sentiment = analyze_news_sentiment(ticker, news_articles)
+        price = data["price"]
+        fundamentals = get_stock_fundamentals(ticker)
+        technicals = get_stock_technicals(ticker)
+        advanced = get_advanced_price_action(ticker)
+        technicals.update(advanced)
+        news_articles = get_stock_news(ticker)
+        news_sentiment = analyze_news_sentiment(ticker, news_articles)
 
         prediction_result = predict_stock_trend_with_levels(
             ticker, price, fundamentals, technicals, news_sentiment
