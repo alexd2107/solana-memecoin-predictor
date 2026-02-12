@@ -1211,12 +1211,6 @@ def analyze_news_sentiment(ticker: str, news_articles: list) -> dict:
         }
 
 # ======================= STOCK FUNCTIONS =======================
-
-You just need `max_score` defined once at the top of `predict_stock_trend_with_levels`, then remove the re‑definition near the bottom.
-
-Here is your stock section with that fixed (only changes are where `max_score` is set):
-
-```python
 def get_stock_data(ticker: str) -> Optional[dict]:
     try:
         stock = yf.Ticker(ticker)
