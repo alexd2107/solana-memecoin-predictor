@@ -404,16 +404,10 @@
         }
 
         @keyframes spin {
-            0% {
-                transform: rotate(0deg);
-            }
-
-            100% {
-                transform: rotate(360deg);
-            }
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
         }
 
-        /* Ticker layout */
         .ticker-layout {
             display: grid;
             grid-template-columns: 220px minmax(0, 1fr) 220px;
@@ -428,13 +422,8 @@
             position: relative;
         }
 
-        .news-ticker-left {
-            border-radius: 0 16px 16px 0;
-        }
-
-        .news-ticker-right {
-            border-radius: 16px 0 0 16px;
-        }
+        .news-ticker-left { border-radius: 0 16px 16px 0; }
+        .news-ticker-right { border-radius: 16px 0 0 16px; }
 
         .news-ticker-inner {
             display: flex;
@@ -460,46 +449,30 @@
             margin-top: 4px;
         }
 
-        /* clickable news links */
         .news-item a {
             color: #c3d0ff;
             text-decoration: none;
         }
 
-        .news-item a:hover {
-            text-decoration: underline;
-        }
+        .news-item a:hover { text-decoration: underline; }
 
         @keyframes ticker-scroll {
-            0% {
-                transform: translateY(0);
-            }
-
-            100% {
-                transform: translateY(-50%);
-            }
+            0% { transform: translateY(0); }
+            100% { transform: translateY(-50%); }
         }
 
         @media (max-width: 1200px) {
-            .two-column-layout {
-                grid-template-columns: 1fr;
-            }
+            .two-column-layout { grid-template-columns: 1fr; }
         }
 
         @media (max-width: 1100px) {
-            .ticker-layout {
-                grid-template-columns: 1fr;
-            }
-
-            .news-ticker {
-                display: none;
-            }
+            .ticker-layout { grid-template-columns: 1fr; }
+            .news-ticker { display: none; }
         }
     </style>
 </head>
 
 <body>
-    <!-- Disclaimer Modal -->
     <div class="modal-overlay" id="disclaimerModal">
         <div class="modal-content">
             <h2>⚠️ Disclaimer</h2>
@@ -510,7 +483,6 @@
         </div>
     </div>
 
-    <!-- Auth Modal -->
     <div class="modal-overlay active" id="authModal">
         <div class="modal-content">
             <h2 id="authTitle">Login to Continue</h2>
@@ -533,7 +505,6 @@
         </div>
     </div>
 
-    <!-- Stats Modal -->
     <div class="modal-overlay" id="statsModal">
         <div class="modal-content" style="max-width: 800px;">
             <h2 id="statsModalTitle">📊 Your Stats</h2>
@@ -544,14 +515,12 @@
         </div>
     </div>
 
-    <!-- Top Price Bar -->
     <div class="price-bar">
         <div style="width: 250px;"></div>
 
         <div class="price-bar-center">
             <div>
                 <span>🚀 SOL</span>
-                <!-- IDs changed to match loadSolanaPrice() -->
                 <span class="price-value" id="solPriceValue">Loading...</span>
                 <span class="price-change" id="solPriceChange"></span>
             </div>
@@ -572,15 +541,13 @@
             <div id="userProfile" class="user-profile" style="display: none;" onclick="toggleUserDropdown()">
                 <span id="userDisplayName">User</span>
                 <span id="walletStatus">🔗</span>
-                <span id="devBadge" style="display: none; color: #14f195; margin-left: 5px; font-size: 0.9em;">🛠
-                    Dev</span>
+                <span id="devBadge" style="display: none; color: #14f195; margin-left: 5px; font-size: 0.9em;">🛠 Dev</span>
 
                 <div id="userDropdown" class="user-dropdown">
                     <div style="padding: 10px; border-bottom: 1px solid #2f3857; margin-bottom: 10px;">
                         <div style="font-size: 0.9em; color: #8fa4d5;">Logged in as</div>
                         <div style="font-weight: bold;" id="userEmailDisplay">email@example.com</div>
-                        <div id="devModeIndicator"
-                            style="display: none; color: #14f195; font-size: 0.85em; margin-top: 5px;">
+                        <div id="devModeIndicator" style="display: none; color: #14f195; font-size: 0.85em; margin-top: 5px;">
                             🧪 Developer Mode
                         </div>
                     </div>
@@ -590,10 +557,8 @@
                     <div class="user-dropdown-item" onclick="connectWallet()">🔗 Connect Wallet</div>
 
                     <div id="devOnlySection" class="dev-only" style="display: none;">
-                        <div class="user-dropdown-item" onclick="viewAllUsers()" style="color: #14f195;">👥 View All
-                            Users</div>
-                        <div class="user-dropdown-item" onclick="viewAllAnalyses()" style="color: #14f195;">📂 All
-                            Analyses</div>
+                        <div class="user-dropdown-item" onclick="viewAllUsers()" style="color: #14f195;">👥 View All Users</div>
+                        <div class="user-dropdown-item" onclick="viewAllAnalyses()" style="color: #14f195;">📂 All Analyses</div>
                     </div>
 
                     <div class="user-dropdown-item" onclick="logout()" style="color: #ff6b6b;">🚪 Logout</div>
@@ -602,18 +567,12 @@
         </div>
     </div>
 
-    <!-- Main Layout with Tickers -->
     <div class="ticker-layout">
-        <!-- Left Crypto News Ticker -->
         <div class="news-ticker news-ticker-left">
-            <div class="news-ticker-inner" id="cryptoNewsTicker">
-                <!-- Crypto news items injected here -->
-            </div>
+            <div class="news-ticker-inner" id="cryptoNewsTicker"></div>
         </div>
 
-        <!-- Center Two-Column Layout -->
         <div class="two-column-layout">
-            <!-- Crypto Column -->
             <div class="column crypto-column">
                 <h1>🪙 Crypto Analyst</h1>
                 <div class="search-bar">
@@ -622,14 +581,10 @@
                 </div>
                 <div id="cryptoTrending" class="trending-list"></div>
 
-                <!-- Analysis result first -->
                 <div id="cryptoResult" class="result"></div>
 
-                <!-- Logo after analysis -->
-                <div id="cryptoLogoContainer"
-                    style="text-align: center; padding: 50px 20px; background: #262c44; border-radius: 10px; margin-top: 32px;">
-                    <img src="/static/logo.png?v=1" alt="Crypto Logo"
-                        style="max-width: 300px; width: 100%; height: auto;">
+                <div id="cryptoLogoContainer" style="text-align: center; padding: 50px 20px; background: #262c44; border-radius: 10px; margin-top: 32px;">
+                    <img src="/static/logo.png?v=1" alt="Crypto Logo" style="max-width: 300px; width: 100%; height: auto;">
                 </div>
 
                 <div id="cryptoShortTermContainer" class="chart-container">
@@ -648,7 +603,6 @@
                 </div>
             </div>
 
-            <!-- Stock Column -->
             <div class="column stock-column">
                 <h1>📈 Stock Analyst</h1>
                 <div class="search-bar">
@@ -659,10 +613,8 @@
 
                 <div id="stockResult" class="result"></div>
 
-                <div id="stockLogoContainer"
-                    style="text-align: center; padding: 50px 20px; background: #262c44; border-radius: 10px; margin-top: 32px;">
-                    <img src="/static/logo.png?v=1" alt="Stock Analyst Logo"
-                        style="max-width: 300px; width: 100%; height: auto;">
+                <div id="stockLogoContainer" style="text-align: center; padding: 50px 20px; background: #262c44; border-radius: 10px; margin-top: 32px;">
+                    <img src="/static/logo.png?v=1" alt="Stock Analyst Logo" style="max-width: 300px; width: 100%; height: auto;">
                 </div>
 
                 <div id="stockShortTermContainer" class="chart-container">
@@ -682,11 +634,8 @@
             </div>
         </div>
 
-        <!-- Right Stock News Ticker -->
         <div class="news-ticker news-ticker-right">
-            <div class="news-ticker-inner" id="stockNewsTicker">
-                <!-- Stock news items injected here -->
-            </div>
+            <div class="news-ticker-inner" id="stockNewsTicker"></div>
         </div>
     </div>
 
@@ -751,7 +700,6 @@
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ email, password })
                     });
-
                     data = await response.json();
                     ok = response.ok;
                 }
@@ -769,14 +717,8 @@
 
                     localStorage.setItem('authToken', authToken);
                     localStorage.setItem('currentUser', JSON.stringify(currentUser));
-
                     updateAuthUI();
                     closeAuthModal();
-
-                    const accepted = localStorage.getItem('disclaimerAccepted');
-                    if (accepted !== 'true') {
-                        document.getElementById('disclaimerModal').classList.add('active');
-                    }
                 } else {
                     const detail = (data && (data.detail || data.message)) || 'Login failed';
                     alert(detail);
@@ -792,10 +734,7 @@
             const email = document.getElementById('signupEmail').value.trim();
             const password = document.getElementById('signupPassword').value;
 
-            if (!username || !email || !password) {
-                alert('Please fill in all fields');
-                return;
-            }
+            if (!username || !email || !password) { alert('Please fill in all fields'); return; }
 
             try {
                 const response = await fetch('/api/auth/signup', {
@@ -803,7 +742,6 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ email, username, password })
                 });
-
                 const data = await response.json();
 
                 if (response.ok) {
@@ -813,17 +751,13 @@
 
                     localStorage.setItem('authToken', authToken);
                     localStorage.setItem('currentUser', JSON.stringify(currentUser));
-
                     updateAuthUI();
                     closeAuthModal();
                     document.getElementById('disclaimerModal').classList.add('active');
-                    alert(data.message || 'Account created successfully!');
                 } else {
-                    const detail = data.detail || data.message || 'Signup failed. Please try again.';
-                    alert(detail);
+                    alert(data.detail || data.message || 'Signup failed.');
                 }
             } catch (err) {
-                console.error(err);
                 alert('Signup error. Please try again.');
             }
         }
@@ -861,259 +795,145 @@
             }
         }
 
-        function toggleUserDropdown() {
-            const dropdown = document.getElementById('userDropdown');
-            dropdown.classList.toggle('active');
-        }
+        function toggleUserDropdown() { document.getElementById('userDropdown').classList.toggle('active'); }
 
         document.addEventListener('click', function (event) {
             const profile = document.getElementById('userProfile');
             const dropdown = document.getElementById('userDropdown');
-            if (profile && !profile.contains(event.target)) {
-                dropdown.classList.remove('active');
-            }
+            if (profile && !profile.contains(event.target)) dropdown.classList.remove('active');
         });
 
         async function connectWallet() {
             try {
                 const solana = window.solana;
-
                 if (!solana || !solana.isPhantom) {
                     alert('Phantom wallet not detected! Please install Phantom wallet extension.');
                     window.open('https://phantom.app/', '_blank');
                     return;
                 }
-
                 const response = await solana.connect();
                 const walletAddress = response.publicKey.toString();
 
                 if (authToken && currentUser && !currentUser.is_dev && authToken !== 'dev-mode-token') {
-                    try {
-                        const linkResponse = await fetch(`/api/auth/connect-wallet?wallet_address=${encodeURIComponent(walletAddress)}`, {
-                            method: 'POST',
-                            headers: { 'Authorization': `Bearer ${authToken}` }
-                        });
-
-                        const linkData = await linkResponse.json();
-
-                        if (linkResponse.ok) {
-                            currentUser.wallet_address = walletAddress;
-                            localStorage.setItem('currentUser', JSON.stringify(currentUser));
-                            updateAuthUI();
-                            alert('Wallet connected to your account!');
-                        } else {
-                            alert(linkData.detail || 'Failed to link wallet');
-                        }
-                    } catch {
-                        alert('Wallet connected, but failed to link to account.');
-                    }
+                    const linkResponse = await fetch(`/api/auth/connect-wallet?wallet_address=${encodeURIComponent(walletAddress)}`, {
+                        method: 'POST',
+                        headers: { 'Authorization': `Bearer ${authToken}` }
+                    });
+                    const linkData = await linkResponse.json();
+                    if (linkResponse.ok) {
+                        currentUser.wallet_address = walletAddress;
+                        localStorage.setItem('currentUser', JSON.stringify(currentUser));
+                        updateAuthUI();
+                        alert('Wallet connected!');
+                    } else { alert(linkData.detail || 'Failed to link wallet'); }
                 } else {
                     alert(`Wallet connected: ${walletAddress.slice(0, 4)}...${walletAddress.slice(-4)}`);
                 }
-            } catch (err) {
-                if (err.message && err.message.includes('User rejected')) {
-                    alert('Wallet connection cancelled');
-                } else {
-                    alert('Failed to connect wallet.');
-                }
-            }
+            } catch (err) { alert('Wallet connection failed or cancelled.'); }
         }
 
+        function isDevUser(user) { return user && user.email === "dev@memecoinmetrics.com"; }
+
         async function viewAllUsers() {
-    if (!isDevUser(currentUser)) {
-        alert('Developer access only');
-        return;
-    }
-
-
+            if (!isDevUser(currentUser)) { alert('Developer access only'); return; }
             try {
                 const response = await fetch('/api/admin/users', { headers: getAuthHeaders() });
                 const data = await response.json();
-
                 if (response.ok) {
-                    let usersHTML = `<h3>👥 All Registered Users (${data.total_users})</h3><div style="max-height: 400px; overflow-y: auto;">`;
-
+                    let usersHTML = `<h3>👥 All Users (${data.total_users})</h3><div style="max-height: 400px; overflow-y: auto;">`;
                     data.users.forEach(u => {
-                        usersHTML += `
-                            <div style="background: #262c44; padding: 15px; margin: 10px 0; border-radius: 8px; text-align: left;">
-                                <strong style="font-size: 1.1em;">${u.username}</strong> <span style="color: #8fa4d5;">(${u.email})</span><br>
-                                <span style="font-size: 0.9em; color: #8fa4d5;">
-                                    🔗 Wallet: ${u.wallet_address || 'Not connected'}<br>
-                                    📅 Joined: ${new Date(u.created_at).toLocaleDateString()}<br>
-                                    📊 Total Searches: ${u.total_analyses}
-                                </span>
-                            </div>
-                        `;
+                        usersHTML += `<div style="background:#262c44; padding:15px; margin:10px 0; border-radius:8px;">
+                            <strong>${u.username}</strong> (${u.email})<br>
+                            <span style="font-size:0.9em; color:#8fa4d5;">Wallet: ${u.wallet_address || 'None'} | Joined: ${new Date(u.created_at).toLocaleDateString()}</span>
+                        </div>`;
                     });
-
-                    usersHTML += '</div>';
-
                     document.getElementById('statsModalTitle').textContent = '👥 All Users';
-                    document.getElementById('statsContent').innerHTML = usersHTML;
+                    document.getElementById('statsContent').innerHTML = usersHTML + '</div>';
                     document.getElementById('statsModal').classList.add('active');
-                } else {
-                    alert('Failed to load users');
                 }
-            } catch {
-                alert('Error loading users');
-            }
+            } catch { alert('Error loading users'); }
         }
 
         async function viewAllAnalyses() {
-    if (!isDevUser(currentUser)) {
-        alert('Developer access only');
-        return;
-    }
-
-
+            if (!isDevUser(currentUser)) { alert('Developer access only'); return; }
             try {
                 const response = await fetch('/api/admin/analyses?limit=100', { headers: getAuthHeaders() });
                 const data = await response.json();
-
                 if (response.ok) {
-                    let analysesHTML = `<h3>📊 All User Analyses (${data.total})</h3><div style="max-height: 400px; overflow-y: auto;">`;
-
+                    let analysesHTML = `<h3>📊 Analyses (${data.total})</h3><div style="max-height: 400px; overflow-y: auto;">`;
                     data.analyses.forEach(a => {
-                        const predColor = a.prediction.includes('AVOID') ? '#ff6b6b' : '#65e261';
-                        analysesHTML += `
-                            <div style="background: #262c44; padding: 15px; margin: 10px 0; border-radius: 8px; text-align: left;">
-                                <strong style="font-size: 1.1em;">${a.symbol}</strong> 
-                                <span style="background: #2f3857; padding: 4px 8px; border-radius: 4px; font-size: 0.85em;">${a.type}</span>
-                                <span style="color: #8fa4d5;"> by ${a.username}</span><br>
-                                <span style="font-size: 0.9em; color: #8fa4d5;">
-                                    🕒 ${new Date(a.timestamp).toLocaleString()}<br>
-                                    <span style="color: ${predColor};">🎯 ${a.prediction}</span>
-                                    ${a.position_type ? ` | ${a.position_type}` : ''}
-                                </span>
-                            </div>
-                        `;
+                        analysesHTML += `<div style="background:#262c44; padding:15px; margin:10px 0; border-radius:8px;">
+                            <strong>${a.symbol}</strong> (${a.type}) by ${a.username}<br>
+                            <span style="font-size:0.9em; color:#8fa4d5;">${new Date(a.timestamp).toLocaleString()} | ${a.prediction}</span>
+                        </div>`;
                     });
-
-                    analysesHTML += '</div>';
-
                     document.getElementById('statsModalTitle').textContent = '📊 All Analyses';
-                    document.getElementById('statsContent').innerHTML = analysesHTML;
+                    document.getElementById('statsContent').innerHTML = analysesHTML + '</div>';
                     document.getElementById('statsModal').classList.add('active');
-                } else {
-                    alert('Failed to load analyses');
                 }
-            } catch {
-                alert('Error loading analyses');
-            }
+            } catch { alert('Error loading analyses'); }
         }
 
         async function showHistory() {
-            if (!authToken || authToken === 'dev-mode-token') {
-                alert('Please login with a real account to view your history');
-                return;
-            }
-
+            if (!authToken || authToken === 'dev-mode-token') { alert('Please login first.'); return; }
             try {
                 const response = await fetch('/api/user/history?limit=50', { headers: { 'Authorization': `Bearer ${authToken}` } });
                 const data = await response.json();
-
                 if (response.ok) {
                     const cryptoAnalyses = data.analyses.filter(a => a.type === 'crypto');
                     if (cryptoAnalyses.length > 0) {
-                        const cryptoHTML = cryptoAnalyses.map(a => `
+                        document.getElementById('cryptoHistoryList').innerHTML = cryptoAnalyses.map(a => `
                             <div class="history-item" onclick="reanalyze('${a.symbol}', 'crypto')">
-                                <strong>${a.symbol}</strong> - ${a.name}<br>
-                                <span style="font-size: 0.9em; color: #8fa4d5;">
-                                    ${new Date(a.timestamp).toLocaleString()} | 
-                                    <span style="color: ${a.prediction.includes('AVOID') ? '#ff6b6b' : '#65e261'};">${a.prediction}</span>
-                                </span>
-                            </div>
-                        `).join('');
-                        document.getElementById('cryptoHistoryList').innerHTML = cryptoHTML;
+                                <strong>${a.symbol}</strong> - ${new Date(a.timestamp).toLocaleString()}<br>
+                                <span style="font-size:0.9em; color:#8fa4d5;">${a.prediction}</span>
+                            </div>`).join('');
                         document.getElementById('cryptoHistorySection').style.display = 'block';
                     }
 
                     const stockAnalyses = data.analyses.filter(a => a.type === 'stock');
                     if (stockAnalyses.length > 0) {
-                        const stockHTML = stockAnalyses.map(a => `
+                        document.getElementById('stockHistoryList').innerHTML = stockAnalyses.map(a => `
                             <div class="history-item" onclick="reanalyze('${a.symbol}', 'stock')">
-                                <strong>${a.symbol}</strong> - ${a.name}<br>
-                                <span style="font-size: 0.9em; color: #8fa4d5;">
-                                    ${new Date(a.timestamp).toLocaleString()} | 
-                                    <span style="color: ${a.prediction.includes('AVOID') ? '#ff6b6b' : '#65e261'};">${a.prediction}</span> | ${a.position_type || 'N/A'}
-                                </span>
-                            </div>
-                        `).join('');
-                        document.getElementById('stockHistoryList').innerHTML = stockHTML;
+                                <strong>${a.symbol}</strong> - ${new Date(a.timestamp).toLocaleString()}<br>
+                                <span style="font-size:0.9em; color:#8fa4d5;">${a.prediction}</span>
+                            </div>`).join('');
                         document.getElementById('stockHistorySection').style.display = 'block';
                     }
-
-                    if (data.analyses.length === 0) {
-                        alert('No analysis history yet. Start searching!');
-                    }
-                } else {
-                    alert('Failed to load history');
                 }
-            } catch {
-                alert('Error loading history');
-            }
+            } catch { alert('Error loading history'); }
         }
 
         function reanalyze(symbol, type) {
-            if (type === 'crypto') {
-                document.getElementById('cryptoSymbol').value = symbol;
-                analyzeCrypto();
-            } else {
-                document.getElementById('stockTicker').value = symbol;
-                analyzeStock();
-            }
+            if (type === 'crypto') { document.getElementById('cryptoSymbol').value = symbol; analyzeCrypto(); } 
+            else { document.getElementById('stockTicker').value = symbol; analyzeStock(); }
         }
 
         async function showStats() {
-            if (!authToken || authToken === 'dev-mode-token') {
-                alert('Please login with a real account to view stats');
-                return;
-            }
-
+            if (!authToken || authToken === 'dev-mode-token') { alert('Please login first.'); return; }
             try {
                 document.getElementById('statsModal').classList.add('active');
-
                 const response = await fetch('/api/user/stats', { headers: { 'Authorization': `Bearer ${authToken}` } });
                 const data = await response.json();
-
                 if (response.ok) {
-                    const topSymbolsHTML = data.top_symbols.map(s => `<li>${s.symbol} (${s.count} searches)</li>`).join('');
-
-                    document.getElementById('statsModalTitle').textContent = '📊 Your Stats';
+                    const topSymbolsHTML = data.top_symbols.map(s => `<li>${s.symbol} (${s.count})</li>`).join('');
                     document.getElementById('statsContent').innerHTML = `
-                        <div style="font-size: 1.1em;">
-                            <p><strong>📊 Total Searches:</strong> ${data.total_searches}</p>
-                            <p><strong>🪙 Crypto Searches:</strong> ${data.crypto_searches}</p>
-                            <p><strong>📈 Stock Searches:</strong> ${data.stock_searches}</p>
-                            <p><strong>🔗 Wallet Connected:</strong> ${data.wallet_connected ? 'Yes ✅' : 'No ❌'}</p>
-                            <p><strong>📅 Member Since:</strong> ${new Date(data.member_since).toLocaleDateString()}</p>
-                            <p><strong>🔥 Top Symbols:</strong></p>
-                            <ul style="margin-left: 20px;">${topSymbolsHTML || '<li>No searches yet</li>'}</ul>
-                        </div>
-                    `;
-                } else {
-                    document.getElementById('statsContent').innerHTML = '<p style="color: #ff6b6b;">Failed to load stats</p>';
+                        <p><strong>Total Searches:</strong> ${data.total_searches}</p>
+                        <p><strong>Crypto / Stock:</strong> ${data.crypto_searches} / ${data.stock_searches}</p>
+                        <p><strong>Top Symbols:</strong></p><ul>${topSymbolsHTML || '<li>None</li>'}</ul>`;
                 }
-            } catch {
-                document.getElementById('statsContent').innerHTML = '<p style="color: #ff6b6b;">Error loading stats</p>';
-            }
+            } catch { document.getElementById('statsContent').innerHTML = '<p style="color:#ff6b6b;">Error loading stats</p>'; }
         }
 
-        function closeStatsModal() {
-            document.getElementById('statsModal').classList.remove('active');
-        }
+        function closeStatsModal() { document.getElementById('statsModal').classList.remove('active'); }
 
         window.addEventListener('load', function () {
             const savedToken = localStorage.getItem('authToken');
             const savedUser = localStorage.getItem('currentUser');
-
             if (savedToken && savedUser) {
                 authToken = savedToken;
                 currentUser = JSON.parse(savedUser);
                 updateAuthUI();
-
-                const accepted = localStorage.getItem('disclaimerAccepted');
-                if (accepted !== 'true') {
+                if (localStorage.getItem('disclaimerAccepted') !== 'true') {
                     document.getElementById('disclaimerModal').classList.add('active');
                 }
                 document.getElementById('authModal').classList.remove('active');
@@ -1122,32 +942,16 @@
             }
         });
 
-        function getAuthHeaders() {
-            if (authToken && authToken !== 'dev-mode-token') {
-                return { 'Authorization': `Bearer ${authToken}` };
-            }
-            return {};
-        }
-function isDevUser(user) {
-    return user && user.email === "dev@memecoinmetrics.com";
-}
+        function getAuthHeaders() { return (authToken && authToken !== 'dev-mode-token') ? { 'Authorization': `Bearer ${authToken}` } : {}; }
 
         async function loadSolanaPrice() {
             try {
                 const response = await fetch("/api/predict?symbol=SOL");
                 const data = await response.json();
-                if (data.error) {
-                    document.getElementById('solPriceValue').textContent = 'Unavailable';
-                    return;
+                if (data.price) {
+                    document.getElementById('solPriceValue').textContent = `$${data.price.toFixed(2)}`;
                 }
-                document.getElementById('solPriceValue').textContent = `$${data.price.toFixed(2)}`;
-                const changeElement = document.getElementById('solPriceChange');
-                const changeText = data.change_24h >= 0 ? `+${data.change_24h.toFixed(2)}%` : `${data.change_24h.toFixed(2)}%`;
-                changeElement.textContent = changeText;
-                changeElement.className = 'price-change ' + (data.change_24h >= 0 ? 'price-up' : 'price-down');
-            } catch {
-                document.getElementById('solPriceValue').textContent = 'Error';
-            }
+            } catch { document.getElementById('solPriceValue').textContent = 'Error'; }
         }
 
         async function loadMarketIndices() {
@@ -1155,508 +959,154 @@ function isDevUser(user) {
                 const response = await fetch('/api/market-indices');
                 const data = await response.json();
                 if (data.indices && data.indices.length > 0) {
-                    const sp = data.indices.find(idx => idx.name === 'S&P 500');
-                    if (sp) {
-                        document.getElementById('spPrice').textContent = `$${sp.price.toFixed(2)}`;
-                        const changeElement = document.getElementById('spChange');
-                        const changeText = sp.change >= 0 ? `+${sp.change.toFixed(2)}%` : `${sp.change.toFixed(2)}%`;
-                        changeElement.textContent = changeText;
-                        changeElement.className = 'price-change ' + (sp.change >= 0 ? 'price-up' : 'price-down');
-                    }
+                    const sp = data.indices[0];
+                    document.getElementById('spPrice').textContent = `$${sp.price.toFixed(2)}`;
+                    const changeElement = document.getElementById('spChange');
+                    changeElement.textContent = sp.change >= 0 ? `+${sp.change.toFixed(2)}%` : `${sp.change.toFixed(2)}%`;
+                    changeElement.className = 'price-change ' + (sp.change >= 0 ? 'price-up' : 'price-down');
                 }
-            } catch { }
+            } catch {}
         }
 
         async function loadCryptoTrending() {
             try {
                 const response = await fetch('/api/latest-tokens');
                 const data = await response.json();
-                let html = "<b style='font-size:1.05em;'>Trending Solana Tokens</b>";
-                if (data.tokens && data.tokens.length) {
-                    html += data.tokens.slice(0, 6).map(t =>
-                        `<div class='trend-row' onclick="quickSearchCrypto('${t.symbol}')">
-                         <span class='trend-symbol'>${t.symbol}</span>
-                         <span class='trend-price'>${t.price}</span>
-                      </div>`
-                    ).join("");
+                if (data.tokens) {
+                    document.getElementById("cryptoTrending").innerHTML = "<b style='font-size:1.05em;'>Trending Tokens</b>" + 
+                        data.tokens.slice(0, 6).map(t => `<div class='trend-row' onclick="quickSearchCrypto('${t.symbol}')"><span class='trend-symbol'>${t.symbol}</span><span class='trend-price'>${t.price}</span></div>`).join("");
                 }
-                document.getElementById("cryptoTrending").innerHTML = html;
-            } catch {
-                document.getElementById("cryptoTrending").innerHTML = "Trending tokens unavailable.";
-            }
+            } catch {}
         }
 
         async function loadStockTrending() {
             try {
                 const response = await fetch('/api/trending-stocks');
                 const data = await response.json();
-                let html = "<b style='font-size:1.05em;'>Popular Stocks</b>";
-                if (data.stocks && data.stocks.length) {
-                    html += data.stocks.map(s =>
-                        `<div class='trend-row' onclick="quickSearchStock('${s.ticker}')">
-                         <span class='trend-symbol'>${s.ticker}</span>
-                         <span class='trend-price'>${s.price}</span>
-                      </div>`
-                    ).join("");
+                if (data.stocks) {
+                    document.getElementById("stockTrending").innerHTML = "<b style='font-size:1.05em;'>Popular Stocks</b>" + 
+                        data.stocks.map(s => `<div class='trend-row' onclick="quickSearchStock('${s.ticker}')"><span class='trend-symbol'>${s.ticker}</span><span class='trend-price'>${s.price}</span></div>`).join("");
                 }
-                document.getElementById("stockTrending").innerHTML = html;
-            } catch {
-                document.getElementById("stockTrending").innerHTML = "Trending stocks unavailable.";
-            }
+            } catch {}
         }
-        async function analyzeCrypto() {
-            let symbol = document
-                .getElementById("cryptoSymbol")
-                .value
-                .trim()
-                .toUpperCase();
 
-            if (symbolToAddress[symbol]) {
-                symbol = symbolToAddress[symbol];
-            }
-            if (!symbol) {
-                alert("Please enter a crypto symbol or address");
-                return;
-            }
+        // ==========================================
+        // FIXED ANALYSIS FUNCTIONS
+        // ==========================================
+        async function analyzeCrypto() {
+            let symbol = document.getElementById("cryptoSymbol").value.trim().toUpperCase();
+            if (symbolToAddress[symbol]) symbol = symbolToAddress[symbol];
+            if (!symbol) { alert("Please enter a crypto symbol or address"); return; }
 
             const resultEl = document.getElementById("cryptoResult");
             resultEl.style.display = "block";
             resultEl.innerHTML = "<div class='spinner'></div> Analyzing crypto...";
 
             try {
-                const response = await fetch(
-                    `/api/predict?symbol=${encodeURIComponent(symbol)}`,
-                    { headers: getAuthHeaders() }
-                );
+                const response = await fetch(`/api/predict?symbol=${encodeURIComponent(symbol)}`, { headers: getAuthHeaders() });
+                const data = await response.json();
 
-                let data = null;
-                try {
-                    data = await response.json();
-                } catch {
-                    data = null;
-                }
-
-                if (!response.ok || !data) {
-                    const msg = (data && data.detail) || "Failed to analyze crypto.";
-                    resultEl.innerHTML = `<span style="color:#ff6b6b;">Error: ${msg}</span>`;
+                if (!response.ok || !data.success) {
+                    resultEl.innerHTML = `<span style="color:#ff6b6b;">Error: ${data.error || data.detail || "Failed to analyze crypto."}</span>`;
                     return;
                 }
 
                 resultEl.innerHTML = `
-    <div class="headline">${data.prediction}</div>
-    <div class="reasoning">${data.reasoning || ""}</div>
-    <div class="metric-row">
-      <span>Liquidity:</span>
-      <span>$${(data.liquidity || 0).toLocaleString()}</span>
-    </div>
-  `;
+                    <div style="font-weight:bold; font-size:1.2em; color:#14f195;">${data.prediction}</div>
+                    <div style="margin-top:10px; color:#8fa4d5;">Liquidity: $${(data.liquidity || 0).toLocaleString()}</div>
+                    <div style="margin-top:10px;">${data.reasoning ? data.reasoning.replace(/\n/g, '<br>') : ''}</div>
+                `;
 
                 if (data.short_term && data.short_term.length > 0) {
-                    const labels = data.short_term.map((p) => p.time);
-                    const prices = data.short_term.map((p) => p.price);
-
                     if (cryptoShortTermChart) cryptoShortTermChart.destroy();
-                    const ctx1 = document
-                        .getElementById("cryptoShortTermChart")
-                        .getContext("2d");
+                    const ctx1 = document.getElementById("cryptoShortTermChart").getContext("2d");
                     cryptoShortTermChart = new Chart(ctx1, {
                         type: "line",
                         data: {
-                            labels,
-                            datasets: [
-                                {
-                                    label: "Price",
-                                    data: prices,
-                                    borderColor: "#6fc4fa",
-                                    backgroundColor: "rgba(111,196,250,0.15)",
-                                    tension: 0.25,
-                                    fill: true,
-                                },
-                            ],
+                            labels: data.short_term.map(p => p.time),
+                            datasets: [{ label: "Price", data: data.short_term.map(p => p.price), borderColor: "#6fc4fa", backgroundColor: "rgba(111,196,250,0.15)", fill: true }]
                         },
                         options: getChartOptions(true),
                     });
-                    document.getElementById("cryptoShortTermContainer").style.display =
-                        "block";
+                    document.getElementById("cryptoShortTermContainer").style.display = "block";
                 }
+            } catch (err) { resultEl.innerHTML = `<span style="color:#ff6b6b;">Error: ${err.message}</span>`; }
+        }
 
-                if (data.long_term && data.long_term.length > 0) {
-                    const labels = data.long_term.map((p) => p.time);
-                    const prices = data.long_term.map((p) => p.price);
+        async function analyzeStock() {
+            const ticker = document.getElementById("stockTicker").value.trim().toUpperCase();
+            if (!ticker) { alert("Please enter a stock ticker"); return; }
 
-                    if (cryptoLongTermChart) cryptoLongTermChart.destroy();
-                    const ctx2 = document
-                        .getElementById("cryptoLongTermChart")
-                        .getContext("2d");
-                    cryptoLongTermChart = new Chart(ctx2, {
-                        type: "line",
-                        data: {
-                            labels,
-                            datasets: [
-                                {
-                                    label: "Price",
-                                    data: prices,
-                                    borderColor: "#91fe77",
-                                    backgroundColor: "rgba(145,254,119,0.15)",
-                                    tension: 0.25,
-                                    fill: true,
-                                },
-                            ],
-                        },
-                        options: getChartOptions(false),
-                    });
-                    document.getElementById("cryptoLongTermContainer").style.display =
-                        "block";
-                }
-            } catch (err) {
-                resultEl.innerHTML = `<span style="color:#ff6b6b;">Error: ${err.message}</span>`;
-            }
+            const resultEl = document.getElementById("stockResult");
+            resultEl.style.display = "block";
+            resultEl.innerHTML = "<div class='spinner'></div> Analyzing stock...";
 
+            try {
+                const response = await fetch(`/api/predict-stock?ticker=${encodeURIComponent(ticker)}`, { headers: getAuthHeaders() });
+                const data = await response.json();
 
-            async function analyzeStock() {
-                const ticker = document
-                    .getElementById("stockTicker")
-                    .value
-                    .trim()
-                    .toUpperCase();
-
-                if (!ticker) {
-                    alert("Please enter a stock ticker");
+                if (!response.ok) {
+                    resultEl.innerHTML = `<span style="color:#ff6b6b;">Error: ${data.detail || "Failed to analyze stock."}</span>`;
                     return;
                 }
 
-                const resultEl = document.getElementById("stockResult");
-                resultEl.style.display = "block";
-                resultEl.innerHTML = "<div class='spinner'></div> Analyzing stock...";
+                let outputHTML = `
+                    <div style="font-weight:bold; font-size:1.2em; color:#14f195;">🏆 ${data.prediction}</div>
+                    <div style="margin-top:10px; color:#8fa4d5;">
+                        Trend: ${data.direction || 'N/A'} | Entry: $${data.buy_price ? data.buy_price.toFixed(2) : 'N/A'}<br>
+                        Stop Loss: $${data.stop_loss ? data.stop_loss.toFixed(2) : 'N/A'} | Target: $${data.take_profit ? data.take_profit.toFixed(2) : 'N/A'}
+                    </div>
+                    <div style="margin-top:10px;">${data.reasoning ? data.reasoning.replace(/\n/g, '<br>') : ''}</div>
+                `;
+                resultEl.innerHTML = outputHTML;
 
-               try {
-  const response = await fetch(
-    `/api/predict?symbol=${encodeURIComponent(symbol)}`,
-    { headers: getAuthHeaders() }
-  );
-
-  let data = null;
-  try {
-    data = await response.json();
-  } catch {
-    data = null;
-  }
-
-  if (!response.ok || !data) {
-    const msg = (data && data.detail) || "Failed to analyze crypto.";
-    resultEl.innerHTML = `<span style="color:#ff6b6b;">Error: ${msg}</span>`;
-    return;
-  }
-
-  resultEl.innerHTML = `
-    <div class="headline">${data.prediction}</div>
-    <div class="reasoning">${data.reasoning || ""}</div>
-    <div class="metric-row">
-      <span>Liquidity:</span>
-      <span>$${(data.liquidity || 0).toLocaleString()}</span>
-    </div>
-  `;
-
-  if (data.short_term && data.short_term.length > 0) {
-    const labels = data.short_term.map((p) => p.time);
-    const prices = data.short_term.map((p) => p.price);
-
-    if (cryptoShortTermChart) cryptoShortTermChart.destroy();
-    const ctx1 = document
-      .getElementById("cryptoShortTermChart")
-      .getContext("2d");
-    cryptoShortTermChart = new Chart(ctx1, {
-      type: "line",
-      data: {
-        labels,
-        datasets: [{
-          label: "Price",
-          data: prices,
-          borderColor: "#6fc4fa",
-          backgroundColor: "rgba(111,196,250,0.15)",
-          tension: 0.25,
-          fill: true,
-        }],
-      },
-      options: getChartOptions(true),
-    });
-    document.getElementById("cryptoShortTermContainer").style.display = "block";
-  }
-
-  if (data.long_term && data.long_term.length > 0) {
-    const labels = data.long_term.map((p) => p.time);
-    const prices = data.long_term.map((p) => p.price);
-
-    if (cryptoLongTermChart) cryptoLongTermChart.destroy();
-    const ctx2 = document
-      .getElementById("cryptoLongTermChart")
-      .getContext("2d");
-    cryptoLongTermChart = new Chart(ctx2, {
-      type: "line",
-      data: {
-        labels,
-        datasets: [{
-          label: "Price",
-          data: prices,
-          borderColor: "#91fe77",
-          backgroundColor: "rgba(145,254,119,0.15)",
-          tension: 0.25,
-          fill: true,
-        }],
-      },
-      options: getChartOptions(false),
-    });
-    document.getElementById("cryptoLongTermContainer").style.display = "block";
-  }
-} catch (err) {
-  resultEl.innerHTML = `<span style="color:#ff6b6b;">Error: ${err.message}</span>`;
-}
-
-            }
-        } 
-
-
-            async function analyzeStock() {
-    const ticker = document
-        .getElementById("stockTicker")
-        .value
-        .trim()
-        .toUpperCase();
-
-    if (!ticker) {
-        alert("Please enter a stock ticker");
-        return;
-    }
-
-    const resultEl = document.getElementById("stockResult");
-    resultEl.style.display = "block";
-    resultEl.innerHTML = "<div class='spinner'></div> Analyzing stock...";
-
-    try {
-        const response = await fetch(
-            `/api/predict-stock?ticker=${encodeURIComponent(ticker)}`,
-            { headers: getAuthHeaders() }
-        );
-        const data = await response.json();
-
-        if (!response.ok) {
-            resultEl.innerHTML = `<span style="color:#ff6b6b;">Error: ${
-                data.detail || "Failed to analyze stock."
-            }</span>`;
-            return;
-        }
-
-        // Build rich text from backend fields
-        const headline = data.prediction || "Analysis result";
-        const direction = data.direction ? `\nTrend: ${data.direction}` : "";
-        const position = data.position_type ? `\nPosition: ${data.position_type}` : "";
-        const scoreLine =
-            data.score != null && data.max_score
-                ? `\nScore: ${data.score}/${data.max_score}`
-                : "";
-
-        const entry =
-            data.buy_price != null ? `\nEntry: $${data.buy_price.toFixed(2)}` : "";
-        const stop =
-            data.stop_loss != null ? `\nStop loss: $${data.stop_loss.toFixed(2)}` : "";
-        const target =
-            data.take_profit != null
-                ? `\nTarget price: $${data.take_profit.toFixed(2)}`
-                : "";
-        const maxUp =
-            data.max_upside_price != null
-                ? `\nMax upside: $${data.max_upside_price.toFixed(2)}`
-                : "";
-        const maxDown =
-            data.max_downside_price != null
-                ? `\nMax downside: $${data.max_downside_price.toFixed(2)}`
-                : "";
-
-        const leverageLine =
-            data.use_leverage && data.suggested_leverage
-                ? `\nLeverage: up to ${data.suggested_leverage}x (${data.leverage_side || "both"})`
-                : `\nLeverage: spot or low leverage only`;
-
-        const reasoning = data.reasoning ? `\n\n${data.reasoning}` : "";
-
-        resultEl.innerText =
-            `🏆 ${headline}` +
-            direction +
-            position +
-            scoreLine +
-            entry +
-            stop +
-            target +
-            maxUp +
-            maxDown +
-            leverageLine +
-            reasoning;
-
-        // Existing chart logic (works if backend returns short_term/long_term)
-        if (data.short_term && data.short_term.length > 0) {
-            const labels = data.short_term.map((p) => p.time);
-            const prices = data.short_term.map((p) => p.price);
-
-            if (stockShortTermChart) stockShortTermChart.destroy();
-            const ctx1 = document
-                .getElementById("stockShortTermChart")
-                .getContext("2d");
-            stockShortTermChart = new Chart(ctx1, {
-                type: "line",
-                data: {
-                    labels,
-                    datasets: [
-                        {
-                            label: "Price",
-                            data: prices,
-                            borderColor: "#6fc4fa",
-                            backgroundColor: "rgba(111,196,250,0.15)",
-                            tension: 0.25,
-                            fill: true,
+                if (data.short_term && data.short_term.length > 0) {
+                    if (stockShortTermChart) stockShortTermChart.destroy();
+                    const ctx1 = document.getElementById("stockShortTermChart").getContext("2d");
+                    stockShortTermChart = new Chart(ctx1, {
+                        type: "line",
+                        data: {
+                            labels: data.short_term.map(p => p.time),
+                            datasets: [{ label: "Price", data: data.short_term.map(p => p.price), borderColor: "#91fe77", backgroundColor: "rgba(145,254,119,0.15)", fill: true }]
                         },
-                    ],
-                },
-                options: getChartOptions(true),
-            });
-            document.getElementById("stockShortTermContainer").style.display =
-                "block";
-        }
-
-        if (data.long_term && data.long_term.length > 0) {
-            const labels = data.long_term.map((p) => p.time);
-            const prices = data.long_term.map((p) => p.price);
-
-            if (stockLongTermChart) stockLongTermChart.destroy();
-            const ctx2 = document
-                .getElementById("stockLongTermChart")
-                .getContext("2d");
-            stockLongTermChart = new Chart(ctx2, {
-                type: "line",
-                data: {
-                    labels,
-                    datasets: [
-                        {
-                            label: "Price",
-                            data: prices,
-                            borderColor: "#91fe77",
-                            backgroundColor: "rgba(145,254,119,0.15)",
-                            tension: 0.25,
-                            fill: true,
-                        },
-                    ],
-                },
-                options: getChartOptions(false),
-            });
-            document.getElementById("stockLongTermContainer").style.display =
-                "block";
-        }
-    } catch (err) {
-        resultEl.innerHTML = `<span style="color:#ff6b6b;">Error: ${err.message}</span>`;
-    }
-}
-
-
-
-            async function loadCryptoNews() {
-                const container = document.getElementById('cryptoNewsTicker');
-                if (!container) return;
-
-                try {
-                    const resp = await fetch('/api/crypto-news');
-                    const data = await resp.json();
-                    const items = (data.news || []).slice(0, 20);
-
-                    const html = items.map(n => `
-            <div class="news-item">
-                <a href="${n.url || '#'}" target="_blank" rel="noopener noreferrer">
-                    ${n.headline}
-                </a>
-                <span class="source">${n.source || 'Crypto News'}</span>
-            </div>
-        `).join('');
-
-                    container.innerHTML = html + html;
-                } catch {
-                    container.innerHTML = "<div class='news-item'>Crypto news unavailable.</div>";
+                        options: getChartOptions(true),
+                    });
+                    document.getElementById("stockShortTermContainer").style.display = "block";
                 }
-            }
+            } catch (err) { resultEl.innerHTML = `<span style="color:#ff6b6b;">Error: ${err.message}</span>`; }
+        }
 
-            async function loadStockNews() {
-                const container = document.getElementById('stockNewsTicker');
-                if (!container) return;
+        async function loadCryptoNews() {
+            try {
+                const resp = await fetch('/api/crypto-news');
+                const data = await resp.json();
+                document.getElementById('cryptoNewsTicker').innerHTML = (data.news || []).map(n => `<div class="news-item"><a href="${n.url}" target="_blank">${n.headline}</a><span class="source">${n.source}</span></div>`).join('');
+            } catch {}
+        }
 
-                try {
-                    const resp = await fetch('/api/market-news');
-                    const data = await resp.json();
-                    const items = (data.news || []).slice(0, 20);
+        async function loadStockNews() {
+            try {
+                const resp = await fetch('/api/market-news');
+                const data = await resp.json();
+                document.getElementById('stockNewsTicker').innerHTML = (data.news || []).map(n => `<div class="news-item"><a href="${n.url}" target="_blank">${n.headline}</a><span class="source">${n.source}</span></div>`).join('');
+            } catch {}
+        }
 
-                    const html = items.map(n => `
-            <div class="news-item">
-                <a href="${n.url || '#'}" target="_blank" rel="noopener noreferrer">
-                    ${n.headline}
-                </a>
-                <span class="source">${n.source || 'Market News'}</span>
-            </div>
-        `).join('');
+        function quickSearchCrypto(symbol) { document.getElementById("cryptoSymbol").value = symbol; analyzeCrypto(); }
+        function quickSearchStock(ticker) { document.getElementById("stockTicker").value = ticker; analyzeStock(); }
 
-                    container.innerHTML = html + html;
-                } catch {
-                    container.innerHTML = "<div class='news-item'>Stock news unavailable.</div>";
+        function getChartOptions(isShortTerm = true) {
+            return {
+                responsive: true, maintainAspectRatio: true, aspectRatio: isShortTerm ? 1.7 : 1.8,
+                plugins: { legend: { display: false } },
+                scales: {
+                    x: { grid: { color: "rgba(255,255,255,0.08)" }, ticks: { color: "#c3d0ff", maxTicksLimit: 6 } },
+                    y: { grid: { color: "rgba(255,255,255,0.08)" }, ticks: { color: "#c3d0ff" } }
                 }
-            }
+            };
+        }
 
-            function quickSearchCrypto(symbol) {
-                document.getElementById("cryptoSymbol").value = symbol;
-                analyzeCrypto();
-            }
-
-            function quickSearchStock(ticker) {
-                document.getElementById("stockTicker").value = ticker;
-                analyzeStock();
-            }
-
-            function getChartOptions(isShortTerm = true) {
-                return {
-                    responsive: true, maintainAspectRatio: true, aspectRatio: isShortTerm ? 1.7 : 1.8,
-                    plugins: {
-                        legend: { display: false },
-                        tooltip: {
-                            callbacks: {
-                                label: function (ctx) {
-                                    return `Price: $${ctx.parsed.y.toFixed(4)}`;
-                                }
-                            }
-                        }
-                    },
-                    scales: {
-                        x: {
-                            grid: { color: "rgba(255,255,255,0.08)" },
-                            ticks: { color: "#c3d0ff", maxTicksLimit: 6 }
-                        },
-                        y: {
-                            grid: { color: "rgba(255,255,255,0.08)" },
-                            ticks: { color: "#c3d0ff" }
-                        }
-                    }
-                };
-            }
-
-            // Kick off initial loads
-            loadSolanaPrice();
-            loadMarketIndices();
-            loadCryptoTrending();
-            loadStockTrending();
-            loadCryptoNews();
-            loadStockNews();
-
-            // Refresh intervals
-            setInterval(loadSolanaPrice, 60_000);
-            setInterval(loadMarketIndices, 300_000);
-            setInterval(loadCryptoTrending, 300_000);
-            setInterval(loadStockTrending, 300_000);
-            setInterval(loadCryptoNews, 600_000);
-            setInterval(loadStockNews, 600_000);
+        loadSolanaPrice(); loadMarketIndices(); loadCryptoTrending(); loadStockTrending(); loadCryptoNews(); loadStockNews();
     </script>
 </body>
-
 </html>
