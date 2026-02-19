@@ -1797,7 +1797,7 @@ def predict_stock_trend_with_levels(
 
 # ======================= CRYPTO PREDICT ENDPOINT =======================
 
-@@app.get("/api/predict")
+@app.get("/api/predict")
 async def predict(
     symbol: str,
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(
