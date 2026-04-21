@@ -299,7 +299,26 @@ async def connect_wallet(
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Wallet connection error: {str(e)}")
 
-
+def create_pnl_card(symbol, pnl_pct, profit_sol, invested_sol):
+    # This creates the green/red snapshot you saw in the screenshot
+    width, height = 500, 650
+    img = Image.new('RGB', (width, height), color='#0d1117')
+    draw = ImageDraw.Draw(img)
+    accent = "#14f195" if pnl_pct >= 0 else "#ff6b6b"
+    
+    # Simple Layout (BullX Aesthetic)
+    draw.rectangle([10, 10, 490, 640], outline=accent, width=3)
+    draw.text((250, 50), "GLOBAL MARKET ANALYST", fill="#9945ff", anchor="ms")
+    draw.text((250, 150), symbol.upper(), fill="white", anchor="ms")
+    draw.text((250, 280), f"{'+' if pnl_pct >= 0 else ''}{pnl_pct:.2f}%", fill=accent, anchor="ms")
+    draw.text((250, 450), f"Invested: {invested_sol} SOL", fill="#8fa4d5", anchor="ms")
+    draw.text((250, 520), f"Profit: {profit_sol:.4f} SOL", fill=accent, anchor="ms")
+    draw.text((250, 610), "VERIFIED BY AI PREDICTION", fill="#5792fe", anchor="ms")
+    
+    buf = io.BytesIO()
+    img.save(buf, format='PNG')
+    buf.seek(0)
+    return buf
 @app.get("/api/auth/me")
 async def get_current_user_info(current_user: User = Depends(get_current_user)):
     return {
@@ -1935,9 +1954,10 @@ async def predict(
         # 7) Final Response
         # -----------------------------
         return {
-            "success": True,
-            "symbol": base_symbol,
+           "success": True,
             "name": token_name,
+            "market_cap": market_cap,
+            "symbol": base_symbol
             "price": price,
             "volume24h": volume24h,
             "liquidity": liquidity,
@@ -2390,7 +2410,16 @@ async def get_api():
         "status": "running",
     }
 
-
+@app.post("/api/trades/buy")
+async def buy_coin(symbol: str, price: float, amount: float, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    try:
+        # This saves the trade to your DB so you can generate the PnL later
+        trade = UserTrade(user_id=current_user.id, symbol=symbol, entry_price=price, amount_sol=amount)
+        db.add(trade)
+        db.commit()
+        return {"success": True, "message": "Trade logged"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 if __name__ == "__main__":
     import uvicorn
 

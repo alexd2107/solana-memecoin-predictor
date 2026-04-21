@@ -469,6 +469,39 @@
             .ticker-layout { grid-template-columns: 1fr; }
             .news-ticker { display: none; }
         }
+
+        /* Badge for Market Cap display */
+        .mcap-badge {
+            background: rgba(145, 254, 119, 0.1);
+            color: #91fe77;
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-size: 0.85em;
+            border: 1px solid rgba(145, 254, 119, 0.3);
+        }
+
+        /* The panel where users enter their trade amount */
+        .trade-panel {
+            display: none;
+            margin-top: 20px;
+            background: #1a1f2e;
+            padding: 20px;
+            border-radius: 12px;
+            border: 1px solid #9945ff;
+            box-shadow: 0 4px 15px rgba(153, 69, 255, 0.2);
+        }
+
+        .trade-panel h3 {
+            margin-top: 0;
+            font-size: 1.1em;
+            color: #fff;
+        }
+
+        .trade-input-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+        }
     </style>
 </head>
 
@@ -583,6 +616,15 @@
 
                 <div id="cryptoResult" class="result"></div>
 
+                <div id="tradePanel" class="trade-panel">
+                    <h3>🚀 Simulate Trade</h3>
+                    <p style="font-size: 0.85em; color: #8fa4d5;">Input investment to track live PnL and generate snapshots.</p>
+                    <div class="trade-input-group">
+                        <input type="number" id="investAmount" placeholder="Amount in SOL" step="0.1" style="flex: 1; padding: 10px; border-radius: 8px; background: #262c44; color: white; border: none;">
+                        <button onclick="submitTrade()" class="wallet-btn">Buy Now</button>
+                    </div>
+                </div>
+
                 <div id="cryptoLogoContainer" style="text-align: center; padding: 50px 20px; background: #262c44; border-radius: 10px; margin-top: 32px;">
                     <img src="/static/logo.png?v=1" alt="Crypto Logo" style="max-width: 300px; width: 100%; height: auto;">
                 </div>
@@ -648,6 +690,9 @@
             "$NUB": "GtDZKAqvMZMnti46ZewMiXCa4oXF4bZxwQPoKzXPFxZn",
             "$WIF": "EKpQGSJtjMFqKZ9KQanSqYXRcF8fBopzLHYxdM65zcjm"
         };
+
+        // Variable to store the coin data after analysis
+        let activeCoin = null;
 
         let cryptoShortTermChart = null;
         let cryptoLongTermChart = null;
@@ -999,7 +1044,9 @@
             if (!symbol) { alert("Please enter a crypto symbol or address"); return; }
 
             const resultEl = document.getElementById("cryptoResult");
+            const tradePanel = document.getElementById("tradePanel");
             resultEl.style.display = "block";
+            tradePanel.style.display = "none";
             resultEl.innerHTML = "<div class='spinner'></div> Analyzing crypto...";
 
             try {
@@ -1011,11 +1058,20 @@
                     return;
                 }
 
+                activeCoin = data; // Store data for the Buy button
+
                 resultEl.innerHTML = `
-                    <div style="font-weight:bold; font-size:1.2em; color:#14f195;">${data.prediction}</div>
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <b style="font-size:1.3em; color:#14f195;">${data.name || symbol}</b>
+                        ${data.market_cap ? `<span class="mcap-badge">MCap: $${(data.market_cap / 1000000).toFixed(2)}M</span>` : ''}
+                    </div>
+                    <div style="margin-top:10px; font-weight:bold; color:#14f195;">${data.prediction}</div>
                     <div style="margin-top:10px; color:#8fa4d5;">Liquidity: $${(data.liquidity || 0).toLocaleString()}</div>
                     <div style="margin-top:10px;">${data.reasoning ? data.reasoning.replace(/\n/g, '<br>') : ''}</div>
                 `;
+
+                // Show the Trade Panel
+                tradePanel.style.display = "block";
 
                 if (data.short_term && data.short_term.length > 0) {
                     if (cryptoShortTermChart) cryptoShortTermChart.destroy();
@@ -1033,6 +1089,31 @@
             } catch (err) { resultEl.innerHTML = `<span style="color:#ff6b6b;">Error: ${err.message}</span>`; }
         }
 
+
+        async function submitTrade() {
+            const amount = document.getElementById('investAmount').value;
+            if (!amount || amount <= 0) {
+                alert("Please enter a valid SOL amount");
+                return;
+            }
+            if (!activeCoin) return;
+
+            try {
+                const response = await fetch(`/api/trades/buy?symbol=${activeCoin.symbol}&price=${activeCoin.price}&amount=${amount}`, {
+                    method: 'POST',
+                    headers: getAuthHeaders()
+                });
+
+                if (response.ok) {
+                    alert(`🚀 Trade logged! Your entry for ${activeCoin.symbol} is saved at $${activeCoin.price.toFixed(8)}`);
+                    document.getElementById('investAmount').value = "";
+                } else {
+                    alert("Failed to log trade. Are you logged in?");
+                }
+            } catch (err) {
+                console.error(err);
+            }
+        }
         async function analyzeStock() {
             const ticker = document.getElementById("stockTicker").value.trim().toUpperCase();
             if (!ticker) { alert("Please enter a stock ticker"); return; }
