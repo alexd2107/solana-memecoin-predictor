@@ -21,6 +21,12 @@ from typing import Optional
 import secrets
 from pydantic import BaseModel
 
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
+
 app = FastAPI()
 
 app.add_middleware(
@@ -33,23 +39,23 @@ app.add_middleware(
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
-# API Keys (Note: Please rotate/revoke keys shared in code for security)
-BITQUERY_API_KEY = "ory_at_f1B3dQRfIiJSDEKQOkxr4OXXQ1tMwcMN6CQuIWjevc4.4ySJCw0ZUx-zS5nXnJUXRY59X9NXR6uWf_RnEaNvlqc"
-MORALIS_API_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJub25jZSI6ImU0ZGQzYzQyLWIyYjgtNDNkZC1iZmE4LTgzMmU3NTgzNzM3YiIsIm9yZ0lkIjoiNDA5MjA3IiwidXNlcklkIjoiNDIwNTY5IiwidHlwZUlkIjoiNjljNzBmMzYtNzBjMS00OTVlLThkNzAtYjM2NzRlMzFjYzExIiwidHlwZSI6IlBST0pFQ1QiLCJpYXQiOjE3MzAwNzQ2MDUsImV4cCI6NDg4NTgzNDYwNX0.ZHXgLyqMR9ijN-vKFxzxgwf0WPKJXcmdsFQCZsDIzOI"
-OPENAI_API_KEY = "sk-proj-mz9TE9TCZnsq66V3O-C1M1JjD80Q92tsEEu4WJutZcjkqSKCf_yN8Cy3FdH-4DafD56-YxBvzfT3BlbkFJwNc0wDdGkEKpD6wvRcO8K-CqmIY4Kz1DVPJHNy-oi5z_zNgjw4P4zMuOSk-cC9XQ19fqisA"
-SOLSCAN_API_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJjcmVhdGVkQXQiOjE3NjgxMzcwODYwMTYsImVtYWlsIjoic29jY2VyYWxleGRva29AZ21haWwuY29tIiwiYWN0aW9uIjoidG9rZW4tYXBpIiwiYXBpVmVyc2lvbiI6InYyIiwiaWF0IjoxNzY4MTM3MDg2fQ.df2kEcUDB_Ti_UKv6gaiJ8CERFlsBpiQ8XIuLEdb4XE"
-HELIUS_API_KEY = "aa25304b-753b-466b-ad17-598a69c0cb7c"
+# API keys and webhooks are loaded from environment variables (.env) - never hardcode them
+BITQUERY_API_KEY = os.getenv("BITQUERY_API_KEY", "")
+MORALIS_API_KEY = os.getenv("MORALIS_API_KEY", "")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
+SOLSCAN_API_KEY = os.getenv("SOLSCAN_API_KEY", "")
+HELIUS_API_KEY = os.getenv("HELIUS_API_KEY", "")
 HELIUS_URL = f"https://mainnet.helius-rpc.com/?api-key={HELIUS_API_KEY}"
-FINNHUB_API_KEY = "d5jqh61r01qjaedr7460"
+FINNHUB_API_KEY = os.getenv("FINNHUB_API_KEY", "")
 
-# FIXED: Removed os.getenv() as it was causing the key to be None
-CRYPTO_NEWS_API_KEY = "ZzNGjDsDiT9GDgcOA4Zw5mVkDGf5kjlG" 
+# Crypto news key (set CRYPTO_NEWS_API_KEY in .env)
+CRYPTO_NEWS_API_KEY = os.getenv("CRYPTO_NEWS_API_KEY", "")
 
-DISCORD_WEBHOOK_CRYPTO = "https://discord.com/api/webhooks/1437292750960594975/2EHZkITnwOC3PwG-h1es1hokmehqlcvUpP6QJPMsIdMjI54YZtP0NdNyEzuE-CCwbRF5"
-DISCORD_WEBHOOK_STOCK = "https://discord.com/api/webhooks/1460815556130246729/7yfC-1AAJ51T9aVrtcU0cNQBxfZXLl177kNMiSVJfd6bamVHG-4u4VRJAPh8d94wlK1s"
+DISCORD_WEBHOOK_CRYPTO = os.getenv("DISCORD_WEBHOOK_CRYPTO", "")
+DISCORD_WEBHOOK_STOCK = os.getenv("DISCORD_WEBHOOK_STOCK", "")
 
-# FIXED: Hardcoded string so users stay logged in after you restart the server
-SECRET_KEY = "my_super_secret_market_analyst_key_123" 
+# Set SECRET_KEY in .env so logins survive restarts (random fallback if missing)
+SECRET_KEY = os.getenv("SECRET_KEY") or secrets.token_urlsafe(64)
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7
 
@@ -1957,7 +1963,7 @@ async def predict(
            "success": True,
             "name": token_name,
             "market_cap": market_cap,
-            "symbol": base_symbol
+            "symbol": base_symbol,
             "price": price,
             "volume24h": volume24h,
             "liquidity": liquidity,
